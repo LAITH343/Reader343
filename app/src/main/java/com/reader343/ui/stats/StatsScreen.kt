@@ -71,14 +71,14 @@ import java.time.format.TextStyle
 
 @Composable
 fun StatsRoute(
-    onBack: () -> Unit,
+    onOpenLibrary: () -> Unit,
     onOpenBook: (Long) -> Unit,
     viewModel: StatsViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     StatsScreen(
         state = state,
-        onBack = onBack,
+        onOpenLibrary = onOpenLibrary,
         onOpenBook = onOpenBook,
         onMetricSelected = viewModel::onMetricSelected,
         onRetry = viewModel::retry,
@@ -89,7 +89,7 @@ fun StatsRoute(
 @Composable
 fun StatsScreen(
     state: StatsUiState,
-    onBack: () -> Unit,
+    onOpenLibrary: () -> Unit,
     onOpenBook: (Long) -> Unit,
     onMetricSelected: (ChartMetric) -> Unit,
     onRetry: () -> Unit,
@@ -101,7 +101,6 @@ fun StatsScreen(
         topBar = {
             AppTopBar(
                 title = stringResource(R.string.stats_title),
-                onBack = onBack,
                 scrollBehavior = scrollBehavior,
             )
         },
@@ -123,7 +122,7 @@ fun StatsScreen(
                 body = stringResource(R.string.stats_empty_hint),
                 modifier = contentModifier,
                 action = {
-                    PrimaryButton(text = stringResource(R.string.stats_go_library), onClick = onBack)
+                    PrimaryButton(text = stringResource(R.string.stats_go_library), onClick = onOpenLibrary)
                 },
             )
             is StatsUiState.Content -> StatsContent(
@@ -464,7 +463,7 @@ private fun StatsScreenPreview() {
                 activity = (0L..180L).filter { it % 4 != 1L }.associate { today.minusDays(it) to (it * 7 % 50).toInt() + 1 },
                 today = today,
             ),
-            onBack = {},
+            onOpenLibrary = {},
             onOpenBook = {},
             onMetricSelected = {},
             onRetry = {},
@@ -476,6 +475,6 @@ private fun StatsScreenPreview() {
 @Composable
 private fun StatsScreenEmptyPreview() {
     Reader343Theme {
-        StatsScreen(state = StatsUiState.Empty, onBack = {}, onOpenBook = {}, onMetricSelected = {}, onRetry = {})
+        StatsScreen(state = StatsUiState.Empty, onOpenLibrary = {}, onOpenBook = {}, onMetricSelected = {}, onRetry = {})
     }
 }

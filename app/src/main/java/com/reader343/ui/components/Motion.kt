@@ -2,6 +2,7 @@ package com.reader343.ui.components
 
 import android.provider.Settings
 import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -14,12 +15,17 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.State
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.composed
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
 
 @Composable
 fun reducedMotion(): Boolean {
@@ -54,6 +60,22 @@ object Motion {
         }
 }
 
+fun Modifier.riseIn(delayMs: Int = 0): Modifier = composed {
+    val reduced = reducedMotion()
+    val progress = remember { Animatable(if (reduced) 1f else 0f) }
+    LaunchedEffect(reduced) {
+        if (reduced) {
+            progress.snapTo(1f)
+        } else {
+            progress.animateTo(1f, tween(RISE_MS, delayMillis = delayMs, easing = FastOutSlowInEasing))
+        }
+    }
+    graphicsLayer {
+        alpha = progress.value
+        translationY = (1f - progress.value) * RiseOffset.toPx()
+    }
+}
+
 @Immutable
 data class Pulse(val alpha: Float, val scale: Float)
 
@@ -67,6 +89,8 @@ fun rememberPulse(enabled: Boolean, periodMs: Int): State<Pulse> {
     return if (enabled) remember(alpha, scale) { derivedStateOf { Pulse(alpha.value, scale.value) } } else still
 }
 
+private const val RISE_MS = 340
+private val RiseOffset = 10.dp
 private const val PULSE_ALPHA_MAX = 0.55f
 private const val PULSE_ALPHA_MIN = 0.15f
 private const val PULSE_SCALE_MAX = 1.12f

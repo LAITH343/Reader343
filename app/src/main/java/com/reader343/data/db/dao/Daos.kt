@@ -18,7 +18,10 @@ interface BookDao {
     @Transaction
     @Query(
         """
-        SELECT books.* FROM books
+        SELECT books.*,
+            (SELECT COUNT(*) FROM highlights WHERE highlights.bookId = books.id) AS highlightCount,
+            (SELECT COUNT(*) FROM notes WHERE notes.bookId = books.id) AS noteCount
+        FROM books
         LEFT JOIN progress ON progress.bookId = books.id
         ORDER BY MAX(COALESCE(progress.updatedAt, 0), books.addedAt) DESC
         """,
@@ -42,6 +45,12 @@ interface ProgressDao {
 
     @Query("SELECT * FROM progress WHERE bookId = :bookId")
     suspend fun getByBookId(bookId: Long): ProgressEntity?
+
+    @Query("UPDATE progress SET finishedAt = :finishedAt WHERE bookId = :bookId")
+    suspend fun setFinishedAt(bookId: Long, finishedAt: Long?)
+
+    @Query("UPDATE progress SET lastPage = 0, scrollOffset = 0, percent = 0, updatedAt = 0, finishedAt = NULL WHERE bookId = :bookId")
+    suspend fun reset(bookId: Long)
 }
 
 @Dao

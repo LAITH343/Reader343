@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 1,
-    "identityHash": "e1da6f5611c5dd376dcc2c0718b42df1",
+    "identityHash": "18577f384247ca06cc8092320ace5865",
     "entities": [
       {
         "tableName": "books",
@@ -59,7 +59,7 @@
       },
       {
         "tableName": "progress",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`bookId` INTEGER NOT NULL, `lastPage` INTEGER NOT NULL, `scrollOffset` REAL NOT NULL, `percent` REAL NOT NULL, `updatedAt` INTEGER NOT NULL, PRIMARY KEY(`bookId`), FOREIGN KEY(`bookId`) REFERENCES `books`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`bookId` INTEGER NOT NULL, `lastPage` INTEGER NOT NULL, `scrollOffset` REAL NOT NULL, `percent` REAL NOT NULL, `updatedAt` INTEGER NOT NULL, `finishedAt` INTEGER, PRIMARY KEY(`bookId`), FOREIGN KEY(`bookId`) REFERENCES `books`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
         "fields": [
           {
             "fieldPath": "bookId",
@@ -90,6 +90,11 @@
             "columnName": "updatedAt",
             "affinity": "INTEGER",
             "notNull": true
+          },
+          {
+            "fieldPath": "finishedAt",
+            "columnName": "finishedAt",
+            "affinity": "INTEGER"
           }
         ],
         "primaryKey": {
@@ -350,7 +355,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'e1da6f5611c5dd376dcc2c0718b42df1')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '18577f384247ca06cc8092320ace5865')"
     ]
   }
 }

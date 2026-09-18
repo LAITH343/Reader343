@@ -83,7 +83,7 @@ class PageDetail(val page: Int, val region: Rect, val tier: Float, val bitmap: I
 @OptIn(FlowPreview::class)
 @HiltViewModel
 class ReaderViewModel @Inject constructor(
-    savedStateHandle: SavedStateHandle,
+    private val savedStateHandle: SavedStateHandle,
     private val repository: ReaderRepository,
     private val highlightRepository: HighlightRepository,
     private val noteRepository: NoteRepository,
@@ -204,6 +204,10 @@ class ReaderViewModel @Inject constructor(
             }
         }
         preloadText(initial)
+        if (savedStateHandle.get<Boolean>(Routes.ARG_NOTES) == true) {
+            savedStateHandle[Routes.ARG_NOTES] = false
+            _notes.update { it.copy(listVisible = true) }
+        }
     }
 
     fun onViewportChanged(size: IntSize) {

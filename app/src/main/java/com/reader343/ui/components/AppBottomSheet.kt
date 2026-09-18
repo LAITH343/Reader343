@@ -33,16 +33,17 @@ fun AppBottomSheet(
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val colors = MaterialTheme.appColors
+    HideBottomBarEffect()
     ModalBottomSheet(
         onDismissRequest = onDismissRequest,
-        modifier = modifier.sheetTopBorder(colors.accLine, SheetRadius),
+        modifier = modifier,
         sheetState = sheetState,
         shape = MaterialTheme.appShapes.sheet,
         containerColor = colors.surf,
         contentColor = colors.ink,
         tonalElevation = 0.dp,
         scrimColor = colors.scrim,
-        dragHandle = { SheetHandle() },
+        dragHandle = { SheetHandle(Modifier.sheetTopBorder(colors.accLine, SheetRadius)) },
         content = content,
     )
 }

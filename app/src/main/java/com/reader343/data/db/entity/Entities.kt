@@ -34,6 +34,7 @@ data class ProgressEntity(
     val scrollOffset: Float,
     val percent: Float,
     val updatedAt: Long,
+    val finishedAt: Long? = null,
 )
 
 @Entity(

@@ -86,6 +86,14 @@ class LibraryRepository @Inject constructor(
         }
     }
 
+    suspend fun setFinished(id: Long, finished: Boolean) {
+        progressDao.setFinishedAt(id, if (finished) System.currentTimeMillis() else null)
+    }
+
+    suspend fun resetProgress(id: Long) {
+        progressDao.reset(id)
+    }
+
     suspend fun deleteBook(id: Long) = withContext(Dispatchers.IO) {
         val book = bookDao.getById(id) ?: return@withContext
         bookDao.deleteById(id)
@@ -121,5 +129,8 @@ class LibraryRepository @Inject constructor(
         lastPage = progress?.lastPage ?: 0,
         percent = progress?.percent ?: 0f,
         lastReadAt = progress?.updatedAt?.takeIf { it > 0L },
+        finishedAt = progress?.finishedAt,
+        highlightCount = highlightCount,
+        noteCount = noteCount,
     )
 }

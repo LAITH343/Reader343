@@ -28,13 +28,17 @@ class ReaderRepository @Inject constructor(
     suspend fun saveProgress(bookId: Long, page: Int, pageCount: Int) {
         if (pageCount <= 0) return
         val clamped = page.coerceIn(0, pageCount - 1)
+        val now = System.currentTimeMillis()
+        val finishedAt = progressDao.getByBookId(bookId)?.finishedAt
+            ?: now.takeIf { clamped == pageCount - 1 }
         progressDao.upsert(
             ProgressEntity(
                 bookId = bookId,
                 lastPage = clamped,
                 scrollOffset = 0f,
                 percent = (clamped + 1).toFloat() / pageCount,
-                updatedAt = System.currentTimeMillis(),
+                updatedAt = now,
+                finishedAt = finishedAt,
             ),
         )
     }

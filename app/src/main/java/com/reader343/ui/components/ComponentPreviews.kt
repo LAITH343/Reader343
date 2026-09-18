@@ -49,7 +49,7 @@ private fun PreviewFrame(content: @Composable ColumnScope.() -> Unit) {
 private fun ButtonsPreview() {
     PreviewFrame {
         PrimaryButton(
-            text = stringResource(R.string.home_continue),
+            text = stringResource(R.string.home_continue_reading),
             onClick = {},
             icon = R.drawable.ic_ph_play_fill,
             modifier = Modifier.fillMaxWidth(),
@@ -59,8 +59,8 @@ private fun ButtonsPreview() {
             PrimaryButton(text = stringResource(R.string.action_save), onClick = {}, modifier = Modifier.weight(1.4f))
         }
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-            PrimaryButton(text = stringResource(R.string.library_import), onClick = {}, icon = R.drawable.ic_ph_plus, compact = true)
-            GhostButton(text = stringResource(R.string.home_all_books), onClick = {})
+            PrimaryButton(text = stringResource(R.string.library_import_short), onClick = {}, icon = R.drawable.ic_ph_plus, compact = true)
+            GhostButton(text = stringResource(R.string.home_set_goal), onClick = {})
             DestructiveTextButton(text = stringResource(R.string.action_delete), onClick = {})
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -97,7 +97,7 @@ private fun ChipsPreview() {
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             SelectableChip(text = stringResource(R.string.settings_reading), selected = true, onClick = {})
-            SelectableChip(text = stringResource(R.string.home_all_books), selected = false, onClick = {})
+            SelectableChip(text = stringResource(R.string.library_filter_finished), selected = false, onClick = {})
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             SelectableChip(text = stringResource(R.string.settings_option_system), selected = false, onClick = {}, icon = R.drawable.ic_ph_circle_half)
@@ -177,13 +177,13 @@ private fun CardsPreview() {
         Text(text = stringResource(R.string.stats_title), style = MaterialTheme.appType.screenTitle, color = MaterialTheme.appColors.ink)
         SectionLabel(text = stringResource(R.string.settings_reading))
         HeroCard(modifier = Modifier.fillMaxWidth()) {
-            Text(text = stringResource(R.string.home_continue).uppercase(), style = MaterialTheme.appType.kicker, color = MaterialTheme.appColors.accLt)
+            Text(text = stringResource(R.string.home_continue_reading).uppercase(), style = MaterialTheme.appType.kicker, color = MaterialTheme.appColors.accLt)
             Text(text = stringResource(R.string.app_name), style = MaterialTheme.typography.titleMedium)
             ProgressBar(progress = 0.05f, color = MaterialTheme.appColors.accLt, trackColor = MaterialTheme.appColors.accLine)
         }
         AppCard(modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                SectionHeader(text = stringResource(R.string.library_title), actionLabel = stringResource(R.string.home_all_books), onAction = {})
+                SectionHeader(text = stringResource(R.string.library_title), actionLabel = stringResource(R.string.home_see_all, "4"), onAction = {})
                 QuoteBlock(text = stringResource(R.string.notes_empty_hint))
             }
         }

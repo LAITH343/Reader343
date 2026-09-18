@@ -14,8 +14,10 @@ import androidx.compose.ui.unit.dp
 @Immutable
 data class AppShapes(
     val swatch: Shape = RoundedCornerShape(4.dp),
+    val cover: Shape = RoundedCornerShape(8.dp),
     val tile: Shape = RoundedCornerShape(9.dp),
     val small: Shape = RoundedCornerShape(10.dp),
+    val iconTile: Shape = RoundedCornerShape(11.dp),
     val item: Shape = RoundedCornerShape(12.dp),
     val control: Shape = RoundedCornerShape(13.dp),
     val button: Shape = RoundedCornerShape(14.dp),
@@ -23,6 +25,7 @@ data class AppShapes(
     val listCard: Shape = RoundedCornerShape(18.dp),
     val card: Shape = RoundedCornerShape(20.dp),
     val hero: Shape = RoundedCornerShape(22.dp),
+    val emblem: Shape = RoundedCornerShape(26.dp),
     val sheet: Shape = RoundedCornerShape(topStart = 26.dp, topEnd = 26.dp),
     val pill: Shape = CircleShape,
 )

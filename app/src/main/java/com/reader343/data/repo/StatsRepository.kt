@@ -101,7 +101,9 @@ class StatsRepository @Inject constructor(
         return ReadingStats(
             streakDays = streak(byDay.keys, today),
             totalTimeMs = totalTime,
-            booksInProgress = bookStats.count { it.percent < 1f },
+            booksInProgress = books.count { row ->
+                row.progress?.let { it.updatedAt > 0L && it.finishedAt == null } == true
+            },
             sessionCount = sessions.size,
             avgSessionMs = if (sessions.isEmpty()) 0L else totalTime / sessions.size,
             pagesPerDay = if (byDay.isEmpty()) 0f else sessions.sumOf { it.pagesRead }.toFloat() / byDay.size,

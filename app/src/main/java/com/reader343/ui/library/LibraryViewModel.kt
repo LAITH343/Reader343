@@ -1,6 +1,7 @@
 package com.reader343.ui.library
 
 import android.net.Uri
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.reader343.data.repo.LibraryRepository
@@ -9,8 +10,12 @@ import com.reader343.data.repo.StatsRepository
 import com.reader343.domain.AppSettings
 import com.reader343.domain.BookWithProgress
 import com.reader343.domain.DailyGoal
-import com.reader343.domain.continueCandidate
+import com.reader343.domain.LibraryFilter
 import com.reader343.domain.ReadingStats
+import com.reader343.domain.WeekDay
+import com.reader343.domain.continueCandidate
+import com.reader343.domain.filteredBy
+import com.reader343.domain.weekProgress
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.Channel
@@ -38,7 +43,12 @@ sealed interface LibraryUiState {
         val books: List<BookWithProgress>,
         val continueBook: BookWithProgress?,
         val stats: HomeStats?,
-    ) : LibraryUiState
+        val filter: LibraryFilter,
+    ) : LibraryUiState {
+        val visibleBooks: List<BookWithProgress> get() = books.filteredBy(filter)
+        val inProgressCount: Int get() = books.count { it.inProgress }
+        val shelf: List<BookWithProgress> get() = books.filterNot { it.finished }.ifEmpty { books }
+    }
 }
 
 data class HomeStats(
@@ -46,7 +56,7 @@ data class HomeStats(
     val todayMs: Long,
     val todayPages: Int,
     val goal: DailyGoal,
-    val booksInProgress: Int,
+    val week: List<WeekDay>,
 )
 
 sealed interface LibraryEvent {
@@ -56,6 +66,7 @@ sealed interface LibraryEvent {
 @OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
 class LibraryViewModel @Inject constructor(
+    private val savedStateHandle: SavedStateHandle,
     private val repository: LibraryRepository,
     private val statsRepository: StatsRepository,
     private val settingsRepository: SettingsRepository,
@@ -65,11 +76,16 @@ class LibraryViewModel @Inject constructor(
 
     val uiState: StateFlow<LibraryUiState> = reload
         .flatMapLatest { attempt ->
-            combine(repository.observeBooks(), observeHomeStats()) { books, stats ->
+            combine(
+                repository.observeBooks(),
+                observeHomeStats(),
+                savedStateHandle.getStateFlow<LibraryFilter?>(KEY_FILTER, null),
+            ) { books, stats, selected ->
                 if (books.isEmpty()) {
                     LibraryUiState.Empty
                 } else {
-                    LibraryUiState.Content(books, books.continueCandidate(), stats)
+                    val filter = selected ?: if (books.any { it.inProgress }) LibraryFilter.Reading else LibraryFilter.All
+                    LibraryUiState.Content(books, books.continueCandidate(), stats, filter)
                 }
             }
                 .onStart { if (attempt > 0) emit(LibraryUiState.Loading) }
@@ -111,8 +127,20 @@ class LibraryViewModel @Inject constructor(
             todayMs = day?.timeMs ?: 0L,
             todayPages = day?.pages ?: 0,
             goal = goal,
-            booksInProgress = booksInProgress,
+            week = weekProgress(days, goal, today),
         )
+    }
+
+    fun setFilter(filter: LibraryFilter) {
+        savedStateHandle[KEY_FILTER] = filter
+    }
+
+    fun setFinished(id: Long, finished: Boolean) {
+        viewModelScope.launch { repository.setFinished(id, finished) }
+    }
+
+    fun resetProgress(id: Long) {
+        viewModelScope.launch { repository.resetProgress(id) }
     }
 
     fun retry() {
@@ -121,5 +149,9 @@ class LibraryViewModel @Inject constructor(
 
     fun deleteBook(id: Long) {
         viewModelScope.launch { repository.deleteBook(id) }
+    }
+
+    private companion object {
+        const val KEY_FILTER = "filter"
     }
 }

@@ -77,7 +77,6 @@ import java.time.format.DecimalStyle
 
 @Composable
 fun SettingsRoute(
-    onBack: () -> Unit,
     viewModel: SettingsViewModel = hiltViewModel(),
 ) {
     val settings by viewModel.settings.collectAsStateWithLifecycle()
@@ -112,7 +111,6 @@ fun SettingsRoute(
             onStreakReminder = viewModel::setStreakReminder,
             onStreakTime = viewModel::setStreakTime,
         ),
-        onBack = onBack,
         snackbarHostState = snackbarHostState,
         notificationsBlocked = !access.allowed,
         onFixNotifications = {
@@ -174,7 +172,6 @@ private enum class SettingsDialog { Goal, ReminderTime, StreakTime }
 fun SettingsScreen(
     settings: AppSettings?,
     actions: SettingsActions,
-    onBack: () -> Unit,
     modifier: Modifier = Modifier,
     snackbarHostState: SnackbarHostState = remember { SnackbarHostState() },
     notificationsBlocked: Boolean = false,
@@ -188,7 +185,6 @@ fun SettingsScreen(
         topBar = {
             AppTopBar(
                 title = stringResource(R.string.settings_title),
-                onBack = onBack,
                 scrollBehavior = scrollBehavior,
             )
         },
@@ -613,7 +609,6 @@ private fun SettingsPreview() {
         SettingsScreen(
             settings = AppSettings(goal = DailyGoal(GoalUnit.Minutes, 30)),
             actions = SettingsActions({}, {}, {}, {}, {}, {}, {}, {}),
-            onBack = {},
         )
     }
 }
