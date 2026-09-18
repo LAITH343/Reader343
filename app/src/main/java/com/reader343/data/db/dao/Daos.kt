@@ -10,6 +10,7 @@ import com.reader343.data.db.entity.BookWithProgressRow
 import com.reader343.data.db.entity.HighlightEntity
 import com.reader343.data.db.entity.NoteEntity
 import com.reader343.data.db.entity.ProgressEntity
+import com.reader343.data.db.entity.SessionEntity
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -71,4 +72,22 @@ interface NoteDao {
 }
 
 @Dao
-interface SessionDao
+interface SessionDao {
+    @Insert
+    suspend fun insert(session: SessionEntity): Long
+
+    @Query("SELECT * FROM sessions WHERE bookId = :bookId AND endTs IS NOT NULL ORDER BY endTs DESC LIMIT 1")
+    suspend fun latestFinished(bookId: Long): SessionEntity?
+
+    @Query("UPDATE sessions SET endTs = :endTs, pagesRead = :pagesRead WHERE id = :id")
+    suspend fun finish(id: Long, endTs: Long, pagesRead: Int)
+
+    @Query("DELETE FROM sessions WHERE id = :id")
+    suspend fun deleteById(id: Long)
+
+    @Query("DELETE FROM sessions WHERE bookId = :bookId AND endTs IS NULL")
+    suspend fun deleteUnfinished(bookId: Long)
+
+    @Query("SELECT * FROM sessions WHERE endTs IS NOT NULL ORDER BY startTs")
+    fun observeFinished(): Flow<List<SessionEntity>>
+}

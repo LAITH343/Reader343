@@ -40,6 +40,39 @@
     <string name="note_view">View note</string>
     <string name="note_delete">Delete</string>
     <string name="stats_title">Stats</string>
+    <string name="stats_empty">No reading yet</string>
+    <string name="stats_empty_hint">Open a book to start tracking your reading time and streak.</string>
+    <string name="stats_streak">Streak</string>
+    <string name="stats_total_time">Total time</string>
+    <string name="stats_in_progress">In progress</string>
+    <string name="stats_avg_session">Avg session</string>
+    <string name="stats_pages_per_day">Pages / day</string>
+    <string name="stats_sessions">Sessions</string>
+    <string name="stats_last_days">Last 14 days</string>
+    <string name="stats_metric_time">Time</string>
+    <string name="stats_metric_pages">Pages</string>
+    <string name="stats_chart_time">%1$s read</string>
+    <string name="stats_books">Books</string>
+    <string name="stats_book_detail">%1$s · %2$s · avg %3$s · %4$s</string>
+    <plurals name="stats_days">
+        <item quantity="one">%d day</item>
+        <item quantity="other">%d days</item>
+    </plurals>
+    <plurals name="stats_chart_pages">
+        <item quantity="one">%d page read</item>
+        <item quantity="other">%d pages read</item>
+    </plurals>
+    <plurals name="stats_sessions_count">
+        <item quantity="one">%d session</item>
+        <item quantity="other">%d sessions</item>
+    </plurals>
+    <plurals name="stats_pages_count">
+        <item quantity="one">%d page</item>
+        <item quantity="other">%d pages</item>
+    </plurals>
+    <string name="duration_hours_minutes">%1$dh %2$dm</string>
+    <string name="duration_minutes">%1$dm</string>
+    <string name="duration_seconds">%1$ds</string>
     <string name="action_stats">Stats</string>
     <string name="action_back">Back</string>
 </resources>

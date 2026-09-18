@@ -22,6 +22,7 @@ import androidx.lifecycle.viewModelScope
 import com.reader343.data.repo.HighlightRepository
 import com.reader343.data.repo.NoteRepository
 import com.reader343.data.repo.ReaderRepository
+import com.reader343.data.repo.SessionRepository
 import com.reader343.di.ApplicationScope
 import com.reader343.domain.Highlight
 import com.reader343.domain.NewHighlight
@@ -81,6 +82,7 @@ class ReaderViewModel @Inject constructor(
     private val repository: ReaderRepository,
     private val highlightRepository: HighlightRepository,
     private val noteRepository: NoteRepository,
+    private val sessionRepository: SessionRepository,
     private val engine: PdfEngine,
     @ApplicationScope private val appScope: CoroutineScope,
 ) : ViewModel(), MarkupActions, NoteActions {
@@ -120,6 +122,10 @@ class ReaderViewModel @Inject constructor(
     private var selectionJob: Job? = null
     private var pendingNoteId: Long? = null
     private var editorKey = 0L
+    private var foreground = false
+    private var sessionOpen = false
+    private var sessionPages = 0
+    private var checkpointJob: Job? = null
 
     init {
         viewModelScope.launch { load() }
@@ -155,6 +161,7 @@ class ReaderViewModel @Inject constructor(
             chromeVisible = true,
         )
         scheduleChromeHide()
+        openSession()
         viewModelScope.launch {
             currentPage.drop(1).debounce(SAVE_DEBOUNCE_MS).collect { saveProgress(it) }
         }
@@ -200,6 +207,7 @@ class ReaderViewModel @Inject constructor(
     fun onPageSettled(page: Int) {
         if (page != currentPage.value) {
             currentPage.value = page
+            if (sessionOpen) sessionPages++
             stopZoomAnimation()
             _zoom.value = ZoomState()
             _detail.value = null
@@ -212,6 +220,16 @@ class ReaderViewModel @Inject constructor(
             pendingNoteId = null
             openEditor(pending)
         }
+    }
+
+    fun onForeground() {
+        foreground = true
+        openSession()
+    }
+
+    fun onBackground() {
+        foreground = false
+        closeSession()
     }
 
     fun onPageRequestHandled() {
@@ -719,6 +737,34 @@ class ReaderViewModel @Inject constructor(
         savedPage = page
     }
 
+    private fun openSession() {
+        if (sessionOpen || !foreground || _uiState.value !is ReaderUiState.Ready) return
+        sessionOpen = true
+        sessionPages = 0
+        val now = System.currentTimeMillis()
+        appScope.launch(start = CoroutineStart.UNDISPATCHED) { sessionRepository.open(bookId, now) }
+        checkpointJob = viewModelScope.launch {
+            while (true) {
+                delay(SESSION_CHECKPOINT_MS)
+                val at = System.currentTimeMillis()
+                val pages = sessionPages
+                appScope.launch(start = CoroutineStart.UNDISPATCHED) {
+                    sessionRepository.checkpoint(bookId, at, pages)
+                }
+            }
+        }
+    }
+
+    private fun closeSession() {
+        if (!sessionOpen) return
+        sessionOpen = false
+        checkpointJob?.cancel()
+        checkpointJob = null
+        val now = System.currentTimeMillis()
+        val pages = sessionPages
+        appScope.launch(start = CoroutineStart.UNDISPATCHED) { sessionRepository.close(bookId, now, pages) }
+    }
+
     private fun scheduleChromeHide() {
         chromeJob?.cancel()
         chromeJob = viewModelScope.launch {
@@ -732,6 +778,8 @@ class ReaderViewModel @Inject constructor(
     }
 
     override fun onCleared() {
+        foreground = false
+        closeSession()
         val page = currentPage.value
         val pending = pageCount > 0 && page != savedPage
         val count = pageCount
@@ -758,6 +806,7 @@ class ReaderViewModel @Inject constructor(
         const val SAVE_DEBOUNCE_MS = 400L
         const val DETAIL_DEBOUNCE_MS = 150L
         const val CHROME_HIDE_MS = 3_000L
+        const val SESSION_CHECKPOINT_MS = 30_000L
         const val DETAIL_MIN_SCALE = 1.25f
         val DETAIL_TIERS = floatArrayOf(1.5f, 2f, 3f, 4f, 5f)
         const val DETAIL_PADDING = 0.25f

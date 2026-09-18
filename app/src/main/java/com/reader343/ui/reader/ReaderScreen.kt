@@ -108,6 +108,8 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.reader343.R
 import com.reader343.domain.Highlight
@@ -126,6 +128,9 @@ fun ReaderRoute(
     val detail by viewModel.detail.collectAsStateWithLifecycle()
     val markup by viewModel.markup.collectAsStateWithLifecycle()
     val notes by viewModel.notes.collectAsStateWithLifecycle()
+
+    LifecycleEventEffect(Lifecycle.Event.ON_START) { viewModel.onForeground() }
+    LifecycleEventEffect(Lifecycle.Event.ON_STOP) { viewModel.onBackground() }
 
     ReaderScreen(
         state = state,
