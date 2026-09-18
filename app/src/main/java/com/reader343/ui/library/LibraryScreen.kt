@@ -52,6 +52,8 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.reader343.R
 import com.reader343.domain.BookWithProgress
+import com.reader343.domain.DailyGoal
+import com.reader343.domain.GoalUnit
 import com.reader343.ui.components.AppTopBar
 import com.reader343.ui.components.BookCard
 import com.reader343.ui.components.DestructiveTextButton
@@ -69,6 +71,7 @@ private const val PDF_MIME = "application/pdf"
 fun LibraryRoute(
     onOpenBook: (Long) -> Unit,
     onOpenStats: () -> Unit,
+    onOpenSettings: () -> Unit,
     viewModel: LibraryViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -97,6 +100,7 @@ fun LibraryRoute(
         onOpenBook = onOpenBook,
         onDeleteBook = viewModel::deleteBook,
         onOpenStats = onOpenStats,
+        onOpenSettings = onOpenSettings,
         onRetry = viewModel::retry,
     )
 }
@@ -111,6 +115,7 @@ fun LibraryScreen(
     onOpenBook: (Long) -> Unit,
     onDeleteBook: (Long) -> Unit,
     onOpenStats: () -> Unit,
+    onOpenSettings: () -> Unit,
     onRetry: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -131,6 +136,11 @@ fun LibraryScreen(
                         icon = R.drawable.ic_bar_chart,
                         contentDescription = stringResource(R.string.action_stats),
                         onClick = onOpenStats,
+                    )
+                    TopBarAction(
+                        icon = R.drawable.ic_settings,
+                        contentDescription = stringResource(R.string.action_settings),
+                        onClick = onOpenSettings,
                     )
                 },
             )
@@ -339,7 +349,7 @@ private fun LibraryContentPreview() {
             state = LibraryUiState.Content(
                 books = PreviewBooks,
                 continueBook = PreviewBooks.first(),
-                stats = HomeStats(streakDays = 4, todayMs = 1_380_000, dailyGoalMs = 1_800_000, booksInProgress = 1),
+                stats = HomeStats(streakDays = 4, todayMs = 1_380_000, todayPages = 12, goal = DailyGoal(GoalUnit.Minutes, 30), booksInProgress = 1),
             ),
             importing = false,
             snackbarHostState = remember { SnackbarHostState() },
@@ -347,6 +357,7 @@ private fun LibraryContentPreview() {
             onOpenBook = {},
             onDeleteBook = {},
             onOpenStats = {},
+            onOpenSettings = {},
             onRetry = {},
         )
     }
@@ -364,6 +375,7 @@ private fun LibraryEmptyPreview() {
             onOpenBook = {},
             onDeleteBook = {},
             onOpenStats = {},
+            onOpenSettings = {},
             onRetry = {},
         )
     }

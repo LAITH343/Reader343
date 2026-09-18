@@ -4,8 +4,11 @@ import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.reader343.data.repo.LibraryRepository
+import com.reader343.data.repo.SettingsRepository
 import com.reader343.data.repo.StatsRepository
+import com.reader343.domain.AppSettings
 import com.reader343.domain.BookWithProgress
+import com.reader343.domain.DailyGoal
 import com.reader343.domain.ReadingStats
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -40,7 +43,8 @@ sealed interface LibraryUiState {
 data class HomeStats(
     val streakDays: Int,
     val todayMs: Long,
-    val dailyGoalMs: Long?,
+    val todayPages: Int,
+    val goal: DailyGoal,
     val booksInProgress: Int,
 )
 
@@ -53,6 +57,7 @@ sealed interface LibraryEvent {
 class LibraryViewModel @Inject constructor(
     private val repository: LibraryRepository,
     private val statsRepository: StatsRepository,
+    private val settingsRepository: SettingsRepository,
 ) : ViewModel() {
 
     private val reload = MutableStateFlow(0)
@@ -91,21 +96,28 @@ class LibraryViewModel @Inject constructor(
     }
 
     private fun observeHomeStats(): Flow<HomeStats?> =
-        statsRepository.observeStats()
-            .map<ReadingStats, HomeStats?> { it.toHomeStats(LocalDate.now()) }
-            .catch { emit(null) }
+        combine<ReadingStats, AppSettings, HomeStats?>(
+            statsRepository.observeStats(),
+            settingsRepository.settings,
+        ) { stats, settings ->
+            stats.toHomeStats(LocalDate.now(), settings.goal)
+        }.catch { emit(null) }
 
     private fun continueBook(books: List<BookWithProgress>): BookWithProgress? =
         books
             .filter { it.lastReadAt != null && it.percent < 1f }
             .maxByOrNull { it.lastReadAt ?: 0L }
 
-    private fun ReadingStats.toHomeStats(today: LocalDate) = HomeStats(
-        streakDays = streakDays,
-        todayMs = days.lastOrNull { it.date == today }?.timeMs ?: 0L,
-        dailyGoalMs = null,
-        booksInProgress = booksInProgress,
-    )
+    private fun ReadingStats.toHomeStats(today: LocalDate, goal: DailyGoal): HomeStats {
+        val day = days.lastOrNull { it.date == today }
+        return HomeStats(
+            streakDays = streakDays,
+            todayMs = day?.timeMs ?: 0L,
+            todayPages = day?.pages ?: 0,
+            goal = goal,
+            booksInProgress = booksInProgress,
+        )
+    }
 
     fun retry() {
         reload.update { it + 1 }

@@ -13,12 +13,14 @@ import com.reader343.ui.components.Motion
 import com.reader343.ui.components.reducedMotion
 import com.reader343.ui.library.LibraryRoute
 import com.reader343.ui.reader.ReaderRoute
+import com.reader343.ui.settings.SettingsRoute
 import com.reader343.ui.stats.StatsRoute
 
 object Routes {
     const val LIBRARY = "library"
     const val READER = "reader/{bookId}"
     const val STATS = "stats"
+    const val SETTINGS = "settings"
     const val ARG_BOOK_ID = "bookId"
 
     fun reader(bookId: Long) = "reader/$bookId"
@@ -40,6 +42,7 @@ fun AppNav() {
             LibraryRoute(
                 onOpenBook = { navController.navigateFrom(entry, Routes.reader(it)) },
                 onOpenStats = { navController.navigateFrom(entry, Routes.STATS) },
+                onOpenSettings = { navController.navigateFrom(entry, Routes.SETTINGS) },
             )
         }
         composable(
@@ -53,6 +56,9 @@ fun AppNav() {
                 onBack = { navController.popFrom(entry) },
                 onOpenBook = { navController.navigateFrom(entry, Routes.reader(it)) },
             )
+        }
+        composable(Routes.SETTINGS) { entry ->
+            SettingsRoute(onBack = { navController.popFrom(entry) })
         }
     }
 }

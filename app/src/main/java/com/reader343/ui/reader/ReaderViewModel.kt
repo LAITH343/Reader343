@@ -23,12 +23,14 @@ import com.reader343.data.repo.HighlightRepository
 import com.reader343.data.repo.NoteRepository
 import com.reader343.data.repo.ReaderRepository
 import com.reader343.data.repo.SessionRepository
+import com.reader343.data.repo.SettingsRepository
 import com.reader343.di.ApplicationScope
 import com.reader343.domain.Highlight
 import com.reader343.domain.NewHighlight
 import com.reader343.domain.NormRect
 import com.reader343.domain.Note
 import com.reader343.domain.NoteAnchor
+import com.reader343.domain.PageAppearance
 import com.reader343.pdf.PageBitmapCache
 import com.reader343.pdf.PageSize
 import com.reader343.pdf.PageText
@@ -45,11 +47,14 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -83,6 +88,7 @@ class ReaderViewModel @Inject constructor(
     private val highlightRepository: HighlightRepository,
     private val noteRepository: NoteRepository,
     private val sessionRepository: SessionRepository,
+    settingsRepository: SettingsRepository,
     private val engine: PdfEngine,
     @ApplicationScope private val appScope: CoroutineScope,
 ) : ViewModel(), MarkupActions, NoteActions {
@@ -103,6 +109,10 @@ class ReaderViewModel @Inject constructor(
 
     private val _notes = MutableStateFlow(NotesUiState())
     val notes: StateFlow<NotesUiState> = _notes.asStateFlow()
+
+    val pageAppearance: StateFlow<PageAppearance> = settingsRepository.settings
+        .map { it.pageAppearance }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, PageAppearance.Normal)
 
     private val cache = PageBitmapCache()
     private val textLayer = TextLayer(engine)

@@ -1,0 +1,101 @@
+package com.reader343.data.repo
+
+import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.MutablePreferences
+import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.booleanPreferencesKey
+import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.emptyPreferences
+import androidx.datastore.preferences.core.intPreferencesKey
+import androidx.datastore.preferences.core.stringPreferencesKey
+import com.reader343.domain.AppLanguage
+import com.reader343.domain.AppSettings
+import com.reader343.domain.DailyGoal
+import com.reader343.domain.GoalUnit
+import com.reader343.domain.PageAppearance
+import com.reader343.domain.ReminderSettings
+import com.reader343.domain.ThemeMode
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
+import java.io.IOException
+import java.time.LocalTime
+import javax.inject.Inject
+import javax.inject.Singleton
+
+@Singleton
+class SettingsRepository @Inject constructor(
+    private val dataStore: DataStore<Preferences>,
+) {
+
+    val settings: Flow<AppSettings> = dataStore.data
+        .catch { if (it is IOException) emit(emptyPreferences()) else throw it }
+        .map { it.toSettings() }
+        .distinctUntilChanged()
+
+    suspend fun setTheme(value: ThemeMode) = edit { it[Keys.THEME] = value.name }
+
+    suspend fun setPageAppearance(value: PageAppearance) = edit { it[Keys.PAGE_APPEARANCE] = value.name }
+
+    suspend fun setLanguage(value: AppLanguage) = edit { it[Keys.LANGUAGE] = value.name }
+
+    suspend fun setGoal(value: DailyGoal) = edit {
+        it[Keys.GOAL_UNIT] = value.unit.name
+        it[Keys.GOAL_VALUE] = value.value.coerceAtLeast(0)
+    }
+
+    suspend fun setRemindersEnabled(value: Boolean) = edit { it[Keys.REMINDERS_ENABLED] = value }
+
+    suspend fun setReminderTime(value: LocalTime) = edit {
+        it[Keys.REMINDER_TIME] = value.hour * MINUTES_PER_HOUR + value.minute
+    }
+
+    suspend fun setStreakReminder(value: Boolean) = edit { it[Keys.STREAK_REMINDER] = value }
+
+    private suspend fun edit(block: (MutablePreferences) -> Unit) {
+        dataStore.edit(block)
+    }
+
+    private fun Preferences.toSettings(): AppSettings {
+        val defaults = AppSettings()
+        return AppSettings(
+            theme = enumOf(this[Keys.THEME], defaults.theme),
+            pageAppearance = enumOf(this[Keys.PAGE_APPEARANCE], defaults.pageAppearance),
+            language = enumOf(this[Keys.LANGUAGE], defaults.language),
+            goal = DailyGoal(
+                unit = enumOf(this[Keys.GOAL_UNIT], defaults.goal.unit),
+                value = this[Keys.GOAL_VALUE] ?: defaults.goal.value,
+            ),
+            reminders = ReminderSettings(
+                enabled = this[Keys.REMINDERS_ENABLED] ?: defaults.reminders.enabled,
+                readingTime = this[Keys.REMINDER_TIME]?.let(::timeOf) ?: defaults.reminders.readingTime,
+                streakEnabled = this[Keys.STREAK_REMINDER] ?: defaults.reminders.streakEnabled,
+            ),
+        )
+    }
+
+    private fun timeOf(minuteOfDay: Int): LocalTime {
+        val clamped = minuteOfDay.coerceIn(0, MINUTES_PER_DAY - 1)
+        return LocalTime.of(clamped / MINUTES_PER_HOUR, clamped % MINUTES_PER_HOUR)
+    }
+
+    private inline fun <reified T : Enum<T>> enumOf(name: String?, default: T): T =
+        enumValues<T>().firstOrNull { it.name == name } ?: default
+
+    private object Keys {
+        val THEME = stringPreferencesKey("theme")
+        val PAGE_APPEARANCE = stringPreferencesKey("page_appearance")
+        val LANGUAGE = stringPreferencesKey("language")
+        val GOAL_UNIT = stringPreferencesKey("goal_unit")
+        val GOAL_VALUE = intPreferencesKey("goal_value")
+        val REMINDERS_ENABLED = booleanPreferencesKey("reminders_enabled")
+        val REMINDER_TIME = intPreferencesKey("reminder_time")
+        val STREAK_REMINDER = booleanPreferencesKey("streak_reminder")
+    }
+
+    private companion object {
+        const val MINUTES_PER_HOUR = 60
+        const val MINUTES_PER_DAY = 24 * 60
+    }
+}

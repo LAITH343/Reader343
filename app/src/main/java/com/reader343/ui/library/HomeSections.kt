@@ -16,6 +16,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.reader343.R
+import com.reader343.domain.GoalUnit
 import com.reader343.ui.components.AppCard
 import com.reader343.ui.components.StatTile
 import com.reader343.ui.components.formatMinutes
@@ -47,8 +48,7 @@ fun HomeStatsStrip(
                 modifier = Modifier.weight(1f),
             )
             TodayTile(
-                todayMs = stats.todayMs,
-                goalMs = stats.dailyGoalMs,
+                stats = stats,
                 modifier = Modifier.weight(1f),
             )
             StatTile(
@@ -64,12 +64,15 @@ fun HomeStatsStrip(
 
 @Composable
 private fun TodayTile(
-    todayMs: Long,
-    goalMs: Long?,
+    stats: HomeStats,
     modifier: Modifier = Modifier,
 ) {
-    val today = formatMinutes(todayMs)
-    if (goalMs == null || goalMs <= 0L) {
+    val goal = stats.goal
+    val today = when (goal.unit) {
+        GoalUnit.Minutes -> formatMinutes(stats.todayMs)
+        GoalUnit.Pages -> pluralStringResource(R.plurals.stats_pages_value, stats.todayPages, formatNumber(stats.todayPages))
+    }
+    if (!goal.enabled) {
         StatTile(
             value = today,
             label = stringResource(R.string.home_today),
@@ -79,14 +82,22 @@ private fun TodayTile(
         )
         return
     }
-    val description = stringResource(R.string.home_today_goal, today, formatMinutes(goalMs))
+    val target = when (goal.unit) {
+        GoalUnit.Minutes -> formatMinutes(goal.value * MinuteMs)
+        GoalUnit.Pages -> pluralStringResource(R.plurals.stats_pages_value, goal.value, formatNumber(goal.value))
+    }
+    val progress = when (goal.unit) {
+        GoalUnit.Minutes -> stats.todayMs.toFloat() / (goal.value * MinuteMs)
+        GoalUnit.Pages -> stats.todayPages.toFloat() / goal.value
+    }
+    val description = stringResource(R.string.home_today_goal, today, target)
     Row(
         modifier = modifier.semantics(mergeDescendants = true) { contentDescription = description },
         horizontalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.sm),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         CircularProgressIndicator(
-            progress = { (todayMs.toFloat() / goalMs).coerceIn(0f, 1f) },
+            progress = { progress.coerceIn(0f, 1f) },
             modifier = Modifier.size(GoalRingSize),
             strokeWidth = GoalRingStroke,
             trackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
@@ -100,5 +111,6 @@ private fun TodayTile(
     }
 }
 
+private const val MinuteMs = 60_000L
 private val GoalRingSize = 32.dp
 private val GoalRingStroke = 4.dp

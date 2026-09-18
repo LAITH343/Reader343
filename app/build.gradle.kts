@@ -35,6 +35,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 
@@ -62,6 +63,8 @@ dependencies {
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.pdfium.android)
     implementation(libs.coil.compose)
+    implementation(libs.androidx.datastore.preferences)
+    implementation(libs.androidx.appcompat)
     debugImplementation(libs.androidx.compose.ui.tooling)
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.espresso.core)

@@ -95,4 +95,36 @@
     <string name="action_more">More options</string>
     <string name="state_loading">Loading</string>
     <string name="state_error_hint">Something went wrong while reading data on this device.</string>
+    <string name="action_settings">Settings</string>
+    <string name="action_save">Save</string>
+    <string name="settings_title">Settings</string>
+    <string name="settings_appearance">Appearance</string>
+    <string name="settings_theme">Theme</string>
+    <string name="settings_option_system">System</string>
+    <string name="settings_theme_light">Light</string>
+    <string name="settings_theme_dark">Dark</string>
+    <string name="settings_page_appearance">Page appearance</string>
+    <string name="settings_page_normal">Normal</string>
+    <string name="settings_page_night">Night</string>
+    <string name="settings_page_sepia">Sepia</string>
+    <string name="settings_language">Language</string>
+    <string name="language_english" translatable="false">English</string>
+    <string name="language_arabic" translatable="false">العربية</string>
+    <string name="settings_reading">Reading</string>
+    <string name="settings_daily_goal">Daily goal</string>
+    <string name="settings_goal_off">Off</string>
+    <string name="settings_goal_per_day">%1$s a day</string>
+    <string name="settings_goal_unit_minutes">Minutes</string>
+    <string name="settings_goal_unit_pages">Pages</string>
+    <string name="settings_goal_minutes">Minutes per day</string>
+    <string name="settings_goal_pages">Pages per day</string>
+    <string name="settings_goal_hint">Set to 0 to turn the goal off</string>
+    <string name="settings_reminders">Reminders</string>
+    <string name="settings_reminders_enabled">Reminders</string>
+    <string name="settings_reminders_enabled_hint">Get a daily nudge to read</string>
+    <string name="settings_reminder_time">Reading reminder</string>
+    <string name="settings_streak_reminder">Streak reminder</string>
+    <string name="settings_streak_reminder_hint">Evening alert if you haven\'t read today</string>
+    <string name="settings_about">About</string>
+    <string name="settings_version">Version %1$s</string>
 </resources>

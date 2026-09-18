@@ -147,6 +147,7 @@ fun ReaderRoute(
     val detail by viewModel.detail.collectAsStateWithLifecycle()
     val markup by viewModel.markup.collectAsStateWithLifecycle()
     val notes by viewModel.notes.collectAsStateWithLifecycle()
+    val pageAppearance by viewModel.pageAppearance.collectAsStateWithLifecycle()
 
     LifecycleEventEffect(Lifecycle.Event.ON_START) { viewModel.onForeground() }
     LifecycleEventEffect(Lifecycle.Event.ON_STOP) { viewModel.onBackground() }
@@ -168,6 +169,7 @@ fun ReaderRoute(
         onDoubleTap = viewModel::onDoubleTap,
         onTap = viewModel::onTap,
         loadPage = viewModel::pageBitmap,
+        pageStyle = PageStyle.of(pageAppearance),
     )
 }
 
@@ -191,7 +193,7 @@ fun ReaderScreen(
     onTap: (Offset) -> Unit,
     loadPage: suspend (page: Int, viewport: IntSize) -> ImageBitmap?,
     modifier: Modifier = Modifier,
-    pageColor: Color = Color.White,
+    pageStyle: PageStyle = PageStyle.Normal,
 ) {
     val chromeVisible = (state as? ReaderUiState.Ready)?.chromeVisible ?: true
     SystemBarsVisibility(visible = chromeVisible)
@@ -224,7 +226,7 @@ fun ReaderScreen(
                         notes = notes,
                         noteActions = noteActions,
                         uiDirection = uiDirection,
-                        pageColor = pageColor,
+                        pageStyle = pageStyle,
                         onPageSettled = onPageSettled,
                         onPageRequestHandled = onPageRequestHandled,
                         onZoomGestureStart = onZoomGestureStart,
@@ -266,7 +268,7 @@ private fun ReaderPager(
     notes: NotesUiState,
     noteActions: NoteActions,
     uiDirection: LayoutDirection,
-    pageColor: Color,
+    pageStyle: PageStyle,
     onPageSettled: (Int) -> Unit,
     onPageRequestHandled: () -> Unit,
     onZoomGestureStart: () -> Unit,
@@ -313,7 +315,7 @@ private fun ReaderPager(
             activeHighlightHasNote = markup.activeHighlight?.let { notes.forHighlight(it.id) } != null,
             noteActions = noteActions,
             uiDirection = uiDirection,
-            pageColor = pageColor,
+            pageStyle = pageStyle,
             onZoomGestureStart = onZoomGestureStart,
             onTransform = onTransform,
             onZoomGestureEnd = onZoomGestureEnd,
@@ -341,7 +343,7 @@ private fun PdfPage(
     activeHighlightHasNote: Boolean,
     noteActions: NoteActions,
     uiDirection: LayoutDirection,
-    pageColor: Color,
+    pageStyle: PageStyle,
     onZoomGestureStart: () -> Unit,
     onTransform: (Offset, Offset, Float) -> Unit,
     onZoomGestureEnd: (Offset, Velocity) -> Unit,
@@ -439,13 +441,14 @@ private fun PdfPage(
                 }
                 .drawBehind {
                     val area = layout.page
-                    drawRect(pageColor, area.topLeft, area.size)
+                    drawRect(pageStyle.paper, area.topLeft, area.size)
                     bitmap?.let {
                         drawImage(
                             image = it,
                             dstOffset = IntOffset(area.left.roundToInt(), area.top.roundToInt()),
                             dstSize = IntSize(area.width.roundToInt(), area.height.roundToInt()),
                             filterQuality = FilterQuality.Medium,
+                            colorFilter = pageStyle.filter,
                         )
                     }
                     detail?.let {
@@ -458,9 +461,10 @@ private fun PdfPage(
                             dstOffset = IntOffset(left.roundToInt(), top.roundToInt()),
                             dstSize = IntSize((right - left).roundToInt(), (bottom - top).roundToInt()),
                             filterQuality = FilterQuality.High,
+                            colorFilter = pageStyle.filter,
                         )
                     }
-                    highlights.forEach { drawMarks(it.rects, Color(it.color), layout) }
+                    highlights.forEach { drawMarks(it.rects, pageStyle.mark(Color(it.color)), pageStyle.markBlend, layout) }
                     activeHighlight?.let { drawOutlines(it.rects, accent, layout, markStroke / zoom.scale) }
                     noteAnchor?.let { drawOutlines(listOf(it), markerColor, layout, markStroke / zoom.scale) }
                     drawNoteMarkers(
@@ -509,10 +513,10 @@ private fun PdfPage(
     }
 }
 
-private fun DrawScope.drawMarks(rects: List<NormRect>, color: Color, layout: PageLayout) {
+private fun DrawScope.drawMarks(rects: List<NormRect>, color: Color, blendMode: BlendMode, layout: PageLayout) {
     rects.forEach { rect ->
         val area = layout.toContent(rect)
-        drawRect(color, area.topLeft, area.size, blendMode = BlendMode.Multiply)
+        drawRect(color, area.topLeft, area.size, blendMode = blendMode)
     }
 }
 
