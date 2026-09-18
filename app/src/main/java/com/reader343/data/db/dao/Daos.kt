@@ -36,6 +36,9 @@ interface BookDao {
 interface ProgressDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(progress: ProgressEntity)
+
+    @Query("SELECT * FROM progress WHERE bookId = :bookId")
+    suspend fun getByBookId(bookId: Long): ProgressEntity?
 }
 
 @Dao

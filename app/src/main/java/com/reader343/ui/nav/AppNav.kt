@@ -7,7 +7,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.reader343.ui.library.LibraryRoute
-import com.reader343.ui.reader.ReaderScreen
+import com.reader343.ui.reader.ReaderRoute
 import com.reader343.ui.stats.StatsScreen
 
 object Routes {
@@ -32,11 +32,8 @@ fun AppNav() {
         composable(
             route = Routes.READER,
             arguments = listOf(navArgument(Routes.ARG_BOOK_ID) { type = NavType.LongType }),
-        ) { entry ->
-            ReaderScreen(
-                bookId = entry.arguments?.getLong(Routes.ARG_BOOK_ID) ?: 0L,
-                onBack = { navController.popBackStack() },
-            )
+        ) {
+            ReaderRoute(onBack = { navController.popBackStack() })
         }
         composable(Routes.STATS) {
             StatsScreen(onBack = { navController.popBackStack() })

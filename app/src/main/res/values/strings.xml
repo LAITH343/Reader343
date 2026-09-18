@@ -18,6 +18,9 @@
     <string name="action_delete">Remove</string>
     <string name="action_cancel">Cancel</string>
     <string name="reader_title">Reader</string>
+    <string name="reader_open_failed">Couldn\'t open this book</string>
+    <string name="reader_page_indicator">%1$d / %2$d</string>
+    <string name="reader_page_loading">Loading page %1$d</string>
     <string name="stats_title">Stats</string>
     <string name="action_stats">Stats</string>
     <string name="action_back">Back</string>
