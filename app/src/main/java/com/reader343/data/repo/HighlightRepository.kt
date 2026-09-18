@@ -16,10 +16,11 @@ class HighlightRepository @Inject constructor(
     private val highlightDao: HighlightDao,
 ) {
 
+    fun observe(bookId: Long): Flow<List<Highlight>> =
+        highlightDao.observeByBook(bookId).map { rows -> rows.mapNotNull { it.toDomain() } }
+
     fun observeByPage(bookId: Long): Flow<Map<Int, List<Highlight>>> =
-        highlightDao.observeByBook(bookId).map { rows ->
-            rows.mapNotNull { it.toDomain() }.groupBy { it.page }
-        }
+        observe(bookId).map { highlights -> highlights.groupBy { it.page } }
 
     suspend fun add(bookId: Long, highlight: NewHighlight): Long =
         highlightDao.insert(
@@ -35,6 +36,8 @@ class HighlightRepository @Inject constructor(
             ),
         )
 
+    suspend fun updateColor(id: Long, color: Int) = highlightDao.updateColor(id, color)
+
     suspend fun delete(id: Long) = highlightDao.deleteById(id)
 
     private fun HighlightEntity.toDomain(): Highlight? {
@@ -47,6 +50,7 @@ class HighlightRepository @Inject constructor(
             charStart = charStart,
             charEnd = charEnd,
             snippet = snippet,
+            createdAt = createdAt,
         )
     }
 

@@ -8,6 +8,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
@@ -28,6 +29,7 @@ import com.reader343.ui.components.Motion
 import com.reader343.ui.components.reducedMotion
 import com.reader343.ui.library.HomeRoute
 import com.reader343.ui.library.LibraryRoute
+import com.reader343.ui.notes.NotesRoute
 import com.reader343.ui.reader.ReaderRoute
 import com.reader343.ui.settings.SettingsRoute
 import com.reader343.ui.stats.StatsRoute
@@ -38,13 +40,17 @@ import kotlinx.coroutines.flow.emptyFlow
 object Routes {
     const val HOME = "home"
     const val LIBRARY = "library"
-    const val READER = "reader/{bookId}?notes={notes}"
+    const val READER = "reader/{bookId}?page={page}"
+    const val NOTES = "notes/{bookId}"
     const val STATS = "stats"
     const val SETTINGS = "settings"
     const val ARG_BOOK_ID = "bookId"
-    const val ARG_NOTES = "notes"
+    const val ARG_PAGE = "page"
+    const val RESULT_PAGE = "resultPage"
 
-    fun reader(bookId: Long, notes: Boolean = false) = "reader/$bookId?notes=$notes"
+    fun reader(bookId: Long, page: Int = -1) = "reader/$bookId?page=$page"
+
+    fun notes(bookId: Long) = "notes/$bookId"
 }
 
 @Composable
@@ -85,7 +91,7 @@ fun AppNav(continueRequests: Flow<Long?> = emptyFlow()) {
                 composable(Routes.HOME) { entry ->
                     HomeRoute(
                         onOpenBook = { navController.navigateFrom(entry, Routes.reader(it)) },
-                        onOpenNotes = { navController.navigateFrom(entry, Routes.reader(it, notes = true)) },
+                        onOpenNotes = { navController.navigateFrom(entry, Routes.notes(it)) },
                         onOpenLibrary = { navController.tabFrom(entry, TopLevelTab.Library) },
                         onOpenSettings = { navController.tabFrom(entry, TopLevelTab.Settings) },
                     )
@@ -93,20 +99,37 @@ fun AppNav(continueRequests: Flow<Long?> = emptyFlow()) {
                 composable(Routes.LIBRARY) { entry ->
                     LibraryRoute(
                         onOpenBook = { navController.navigateFrom(entry, Routes.reader(it)) },
-                        onOpenNotes = { navController.navigateFrom(entry, Routes.reader(it, notes = true)) },
+                        onOpenNotes = { navController.navigateFrom(entry, Routes.notes(it)) },
                     )
                 }
                 composable(
                     route = Routes.READER,
                     arguments = listOf(
                         navArgument(Routes.ARG_BOOK_ID) { type = NavType.LongType },
-                        navArgument(Routes.ARG_NOTES) {
-                            type = NavType.BoolType
-                            defaultValue = false
+                        navArgument(Routes.ARG_PAGE) {
+                            type = NavType.IntType
+                            defaultValue = -1
                         },
                     ),
                 ) { entry ->
-                    ReaderRoute(onBack = { navController.popFrom(entry) })
+                    val bookId = entry.arguments?.getLong(Routes.ARG_BOOK_ID) ?: 0L
+                    val jumpRequest by entry.savedStateHandle.getStateFlow(Routes.RESULT_PAGE, -1).collectAsState()
+                    ReaderRoute(
+                        onBack = { navController.popFrom(entry) },
+                        onOpenNotes = { navController.navigateFrom(entry, Routes.notes(bookId)) },
+                        jumpRequest = jumpRequest,
+                        onJumpHandled = { entry.savedStateHandle[Routes.RESULT_PAGE] = -1 },
+                    )
+                }
+                composable(
+                    route = Routes.NOTES,
+                    arguments = listOf(navArgument(Routes.ARG_BOOK_ID) { type = NavType.LongType }),
+                ) { entry ->
+                    val bookId = entry.arguments?.getLong(Routes.ARG_BOOK_ID) ?: 0L
+                    NotesRoute(
+                        onBack = { navController.popFrom(entry) },
+                        onGoToPage = { page -> navController.goToPageFrom(entry, bookId, page) },
+                    )
                 }
                 composable(Routes.STATS) { entry ->
                     StatsRoute(
@@ -140,6 +163,19 @@ private fun NavController.popFrom(entry: NavBackStackEntry) {
 
 private fun NavController.navigateFrom(entry: NavBackStackEntry, route: String) {
     if (entry.isResumed) navigate(route)
+}
+
+private fun NavController.goToPageFrom(entry: NavBackStackEntry, bookId: Long, page: Int) {
+    if (!entry.isResumed) return
+    val previous = previousBackStackEntry
+    if (previous?.destination?.route == Routes.READER) {
+        previous.savedStateHandle[Routes.RESULT_PAGE] = page
+        popBackStack()
+    } else {
+        navigate(Routes.reader(bookId, page)) {
+            popUpTo(Routes.NOTES) { inclusive = true }
+        }
+    }
 }
 
 private fun NavController.tabFrom(entry: NavBackStackEntry, tab: TopLevelTab) {

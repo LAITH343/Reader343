@@ -365,4 +365,36 @@
     <string name="bookmarks_empty_hint">المس «إشارة» في شريط الأدوات لحفظ موضعك في الصفحة.</string>
     <string name="bookmark_remove">إزالة الإشارة من الصفحة %1$s</string>
     <string name="home_page_progress_chapter">الصفحة %1$s من %2$s · %3$s · متبقٍ %4$s في هذا الفصل</string>
+    <string name="notes_screen_title">الملاحظات والتظليلات</string>
+    <plurals name="notes_highlight_count">
+        <item quantity="zero">%1$s تظليل</item>
+        <item quantity="one">تظليل واحد</item>
+        <item quantity="two">تظليلان</item>
+        <item quantity="few">%1$s تظليلات</item>
+        <item quantity="many">%1$s تظليلًا</item>
+        <item quantity="other">%1$s تظليل</item>
+    </plurals>
+    <plurals name="notes_note_count">
+        <item quantity="zero">%1$s ملاحظة</item>
+        <item quantity="one">ملاحظة واحدة</item>
+        <item quantity="two">ملاحظتان</item>
+        <item quantity="few">%1$s ملاحظات</item>
+        <item quantity="many">%1$s ملاحظة</item>
+        <item quantity="other">%1$s ملاحظة</item>
+    </plurals>
+    <string name="notes_caption">%1$s · %2$s · %3$s</string>
+    <string name="notes_tab_all">الكل %1$s</string>
+    <string name="notes_tab_highlights">التظليلات</string>
+    <string name="notes_tab_notes">الملاحظات</string>
+    <string name="notes_empty_all">لا شيء محدد بعد</string>
+    <string name="notes_empty_all_hint">اضغط مطولًا على فقرة في القارئ لتظليلها أو إرفاق ملاحظة بها.</string>
+    <string name="notes_empty_highlights">لا توجد تظليلات بعد</string>
+    <string name="notes_empty_highlights_hint">اضغط مطولًا على فقرة في القارئ واختر لونًا لتظليلها.</string>
+    <string name="notes_load_failed">تعذّر فتح ملاحظات هذا الكتاب</string>
+    <string name="notes_options">خيارات الصفحة %1$d</string>
+    <string name="notes_edit_note">تعديل الملاحظة</string>
+    <string name="notes_change_color">تغيير اللون</string>
+    <string name="notes_delete">حذف</string>
+    <string name="notes_today_at">اليوم، %1$s</string>
+    <string name="notes_yesterday">أمس</string>
 </resources>

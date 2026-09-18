@@ -14,11 +14,8 @@ data class NoteEditor(
 data class NotesUiState(
     val byPage: Map<Int, List<Note>> = emptyMap(),
     val editor: NoteEditor? = null,
-    val listVisible: Boolean = false,
     val loaded: Boolean = false,
 ) {
-    val all: List<Note> get() = byPage.keys.sorted().flatMap { byPage.getValue(it) }
-
     fun forHighlight(highlightId: Long): Note? =
         byPage.values.firstNotNullOfOrNull { notes -> notes.firstOrNull { it.anchor.highlightId == highlightId } }
 }
@@ -30,9 +27,6 @@ interface NoteActions {
     fun onSaveNote(body: String)
     fun onDeleteNote()
     fun onDismissNote()
-    fun onShowNotes()
-    fun onHideNotes()
-    fun onJumpToNote(noteId: Long)
 
     companion object {
         val None = object : NoteActions {
@@ -42,9 +36,6 @@ interface NoteActions {
             override fun onSaveNote(body: String) = Unit
             override fun onDeleteNote() = Unit
             override fun onDismissNote() = Unit
-            override fun onShowNotes() = Unit
-            override fun onHideNotes() = Unit
-            override fun onJumpToNote(noteId: Long) = Unit
         }
     }
 }

@@ -34,6 +34,7 @@ data class Highlight(
     val charStart: Int?,
     val charEnd: Int?,
     val snippet: String?,
+    val createdAt: Long,
 ) {
     fun contains(x: Float, y: Float, slopX: Float, slopY: Float): Boolean =
         rects.any { it.contains(x, y, slopX, slopY) }

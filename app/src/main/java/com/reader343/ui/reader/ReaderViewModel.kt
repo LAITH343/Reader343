@@ -148,7 +148,6 @@ class ReaderViewModel @Inject constructor(
     private var zoomJob: Job? = null
     private var touch: Offset? = null
     private var selectionJob: Job? = null
-    private var pendingNoteId: Long? = null
     private var editorKey = 0L
     private var foreground = false
     private var sessionOpen = false
@@ -180,7 +179,9 @@ class ReaderViewModel @Inject constructor(
             _uiState.value = ReaderUiState.Error
             return
         }
-        val initial = book.lastPage.coerceIn(0, pageCount - 1)
+        val requested = savedStateHandle.get<Int>(Routes.ARG_PAGE) ?: -1
+        savedStateHandle[Routes.ARG_PAGE] = -1
+        val initial = (if (requested >= 0) requested else book.lastPage).coerceIn(0, pageCount - 1)
         savedPage = initial
         currentPage.value = initial
         val outline = engine.outline()
@@ -236,10 +237,6 @@ class ReaderViewModel @Inject constructor(
             updateReady { it.copy(pace = pace) }
         }
         preloadText(initial)
-        if (savedStateHandle.get<Boolean>(Routes.ARG_NOTES) == true) {
-            savedStateHandle[Routes.ARG_NOTES] = false
-            _notes.update { it.copy(listVisible = true) }
-        }
     }
 
     fun onViewportChanged(size: IntSize) {
@@ -268,11 +265,6 @@ class ReaderViewModel @Inject constructor(
                 )
             }
             preloadText(page)
-        }
-        val pending = pendingNoteId?.let(::findNote) ?: return
-        if (pending.page == page) {
-            pendingNoteId = null
-            openEditor(pending)
         }
     }
 
@@ -601,25 +593,10 @@ class ReaderViewModel @Inject constructor(
 
     override fun onDismissNote() = closeEditor()
 
-    override fun onShowNotes() {
+    fun onLeaveForNotes() {
         clearSelection()
-        _notes.update { it.copy(listVisible = true) }
-    }
-
-    override fun onHideNotes() {
-        _notes.update { it.copy(listVisible = false) }
-    }
-
-    override fun onJumpToNote(noteId: Long) {
-        val note = findNote(noteId) ?: return
-        _notes.update { it.copy(listVisible = false) }
-        if (note.page == currentPage.value) {
-            pendingNoteId = null
-            openEditor(note)
-        } else {
-            pendingNoteId = note.id
-            updateReady { it.copy(pageRequest = note.page) }
-        }
+        _markup.update { it.copy(highlightMode = false) }
+        closeEditor()
     }
 
     private fun findNote(noteId: Long): Note? =

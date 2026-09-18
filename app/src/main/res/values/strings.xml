@@ -288,4 +288,28 @@
     <string name="bookmarks_empty_hint">Tap Bookmark in the toolbar to keep your place on a page.</string>
     <string name="bookmark_remove">Remove bookmark on page %1$s</string>
     <string name="home_page_progress_chapter">Page %1$s of %2$s · %3$s · %4$s left in this chapter</string>
+    <string name="notes_screen_title">Notes &amp; highlights</string>
+    <plurals name="notes_highlight_count">
+        <item quantity="one">%1$s highlight</item>
+        <item quantity="other">%1$s highlights</item>
+    </plurals>
+    <plurals name="notes_note_count">
+        <item quantity="one">%1$s note</item>
+        <item quantity="other">%1$s notes</item>
+    </plurals>
+    <string name="notes_caption">%1$s · %2$s · %3$s</string>
+    <string name="notes_tab_all">All %1$s</string>
+    <string name="notes_tab_highlights">Highlights</string>
+    <string name="notes_tab_notes">Notes</string>
+    <string name="notes_empty_all">Nothing marked yet</string>
+    <string name="notes_empty_all_hint">Long-press a passage in the reader to highlight it or attach a note.</string>
+    <string name="notes_empty_highlights">No highlights yet</string>
+    <string name="notes_empty_highlights_hint">Long-press a passage in the reader and pick an ink to highlight it.</string>
+    <string name="notes_load_failed">Couldn\'t open notes for this book</string>
+    <string name="notes_options">Options for page %1$d</string>
+    <string name="notes_edit_note">Edit note</string>
+    <string name="notes_change_color">Change color</string>
+    <string name="notes_delete">Delete</string>
+    <string name="notes_today_at">Today, %1$s</string>
+    <string name="notes_yesterday">Yesterday</string>
 </resources>

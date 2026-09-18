@@ -572,7 +572,7 @@ internal fun SelectionToolbar(
 }
 
 @Composable
-private fun InkSwatch(
+internal fun InkSwatch(
     color: Color,
     label: String,
     selected: Boolean,

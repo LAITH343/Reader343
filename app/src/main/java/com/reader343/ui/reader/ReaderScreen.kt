@@ -4,7 +4,6 @@ import android.os.Build
 import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
@@ -14,43 +13,23 @@ import androidx.compose.ui.unit.LayoutDirection
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
-import com.reader343.ui.components.AppBottomSheet
 import com.reader343.ui.components.AppTopBar
 import com.reader343.ui.components.ErrorState
 import com.reader343.ui.components.FloatingToolbar
 import com.reader343.ui.components.IconTextButton
 import com.reader343.ui.components.LoadingState
-import com.reader343.ui.components.PrimaryButton
-import com.reader343.ui.components.QuoteBlock
-import com.reader343.ui.components.SecondaryButton
-import com.reader343.ui.components.SheetHeader
-import com.reader343.ui.components.StateContent
 import com.reader343.ui.theme.spacing
 import androidx.compose.foundation.magnifier
 import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.Velocity
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.imePadding
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ListItem
-import androidx.compose.material3.ListItemDefaults
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.rememberModalBottomSheetState
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.painter.Painter
 import com.reader343.domain.Note
-import kotlinx.coroutines.launch
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.gestures.awaitLongPressOrCancellation
 import androidx.compose.foundation.gestures.awaitEachGesture
@@ -81,7 +60,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.BlendMode
@@ -103,7 +81,6 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
@@ -128,6 +105,9 @@ import kotlin.math.roundToInt
 @Composable
 fun ReaderRoute(
     onBack: () -> Unit,
+    onOpenNotes: () -> Unit,
+    jumpRequest: Int = -1,
+    onJumpHandled: () -> Unit = {},
     viewModel: ReaderViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -137,6 +117,12 @@ fun ReaderRoute(
     val notes by viewModel.notes.collectAsStateWithLifecycle()
     val pageAppearance by viewModel.pageAppearance.collectAsStateWithLifecycle()
 
+    LaunchedEffect(jumpRequest, state is ReaderUiState.Ready) {
+        if (jumpRequest >= 0 && state is ReaderUiState.Ready) {
+            viewModel.onJumpToPage(jumpRequest)
+            onJumpHandled()
+        }
+    }
     LifecycleEventEffect(Lifecycle.Event.ON_START) { viewModel.onForeground() }
     LifecycleEventEffect(Lifecycle.Event.ON_STOP) { viewModel.onBackground() }
 
@@ -150,6 +136,10 @@ fun ReaderRoute(
         noteActions = viewModel,
         readerActions = viewModel,
         onBack = onBack,
+        onOpenNotes = {
+            viewModel.onLeaveForNotes()
+            onOpenNotes()
+        },
         onPageSettled = viewModel::onPageSettled,
         onPageRequestHandled = viewModel::onPageRequestHandled,
         onZoomGestureStart = viewModel::onZoomGestureStart,
@@ -174,6 +164,7 @@ fun ReaderScreen(
     noteActions: NoteActions,
     readerActions: ReaderActions,
     onBack: () -> Unit,
+    onOpenNotes: () -> Unit,
     onPageSettled: (Int) -> Unit,
     onPageRequestHandled: () -> Unit,
     onZoomGestureStart: () -> Unit,
@@ -233,7 +224,7 @@ fun ReaderScreen(
                     hasNotes = notes.byPage.isNotEmpty(),
                     zoomed = zoom.isZoomed,
                     onBack = onBack,
-                    onShowNotes = noteActions::onShowNotes,
+                    onShowNotes = onOpenNotes,
                     onToggleZoom = readerActions::onToggleZoom,
                     modifier = Modifier.align(Alignment.TopCenter),
                 )
@@ -246,8 +237,14 @@ fun ReaderScreen(
                     onAddNoteFromSelection = noteActions::onAddNoteFromSelection,
                     modifier = Modifier.align(Alignment.BottomCenter),
                 )
-                notes.editor?.let { NoteSheet(editor = it, actions = noteActions) }
-                if (notes.listVisible) NotesListSheet(notes = notes, actions = noteActions)
+                notes.editor?.let { editor ->
+                    NoteSheet(
+                        editor = editor,
+                        onSave = noteActions::onSaveNote,
+                        onDelete = noteActions::onDeleteNote,
+                        onDismiss = noteActions::onDismissNote,
+                    )
+                }
                 if (state.contentsVisible) {
                     ContentsSheet(
                         state = state,
@@ -770,128 +767,6 @@ private fun HighlightMenu(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun NoteSheet(editor: NoteEditor, actions: NoteActions) {
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    val scope = rememberCoroutineScope()
-    val focusRequester = remember { FocusRequester() }
-    var body by rememberSaveable(editor.key) { mutableStateOf(editor.body) }
-    val isNew = editor.noteId == null
-    val canSave = body.isNotBlank() && body.trim() != editor.body
-    val spacing = MaterialTheme.spacing
-
-    fun hideThen(action: () -> Unit) {
-        scope.launch { sheetState.hide() }.invokeOnCompletion { action() }
-    }
-
-    LaunchedEffect(editor.key) {
-        if (isNew) focusRequester.requestFocus()
-    }
-
-    AppBottomSheet(onDismissRequest = actions::onDismissNote, sheetState = sheetState) {
-        SheetHeader(
-            title = stringResource(if (isNew) R.string.note_new else R.string.note_title),
-            trailing = stringResource(R.string.note_page, editor.page + 1),
-        )
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .imePadding()
-                .padding(start = spacing.xl, end = spacing.xl, top = spacing.sm, bottom = spacing.lg),
-            verticalArrangement = Arrangement.spacedBy(spacing.md),
-        ) {
-            editor.anchor.snippet?.let { snippet ->
-                QuoteBlock(text = snippet, maxLines = 4, modifier = Modifier.fillMaxWidth())
-            }
-            OutlinedTextField(
-                value = body,
-                onValueChange = { body = it },
-                placeholder = { Text(stringResource(R.string.note_placeholder)) },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(min = NoteFieldMinHeight)
-                    .focusRequester(focusRequester),
-            )
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(spacing.sm),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                if (!isNew) {
-                    IconTextButton(
-                        icon = R.drawable.ic_ph_trash,
-                        text = stringResource(R.string.note_delete),
-                        onClick = { hideThen(actions::onDeleteNote) },
-                        destructive = true,
-                    )
-                }
-                Spacer(Modifier.weight(1f))
-                SecondaryButton(
-                    text = stringResource(R.string.action_cancel),
-                    onClick = { hideThen(actions::onDismissNote) },
-                )
-                PrimaryButton(
-                    text = stringResource(R.string.note_save),
-                    onClick = { hideThen { actions.onSaveNote(body) } },
-                    enabled = canSave,
-                )
-            }
-        }
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun NotesListSheet(notes: NotesUiState, actions: NoteActions) {
-    val sheetState = rememberModalBottomSheetState()
-    val scope = rememberCoroutineScope()
-    val all = notes.all
-
-    AppBottomSheet(onDismissRequest = actions::onHideNotes, sheetState = sheetState) {
-        SheetHeader(title = stringResource(R.string.notes_title))
-        when {
-            !notes.loaded -> LoadingState(Modifier.heightIn(max = SheetStateHeight))
-            all.isEmpty() -> StateContent(
-                icon = R.drawable.ic_ph_note,
-                title = stringResource(R.string.notes_empty),
-                body = stringResource(R.string.notes_empty_hint),
-                modifier = Modifier.align(Alignment.CenterHorizontally),
-            )
-            else -> LazyColumn(
-                modifier = Modifier.fillMaxWidth(),
-                contentPadding = PaddingValues(bottom = MaterialTheme.spacing.lg),
-            ) {
-                items(all, key = { it.id }) { note ->
-                    ListItem(
-                        overlineContent = { Text(stringResource(R.string.note_page, note.page + 1)) },
-                        headlineContent = {
-                            Text(text = note.body, maxLines = 3, overflow = TextOverflow.Ellipsis)
-                        },
-                        supportingContent = note.anchor.snippet?.let { snippet ->
-                            {
-                                QuoteBlock(
-                                    text = snippet,
-                                    maxLines = 2,
-                                    modifier = Modifier.padding(top = MaterialTheme.spacing.xs),
-                                )
-                            }
-                        },
-                        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                        modifier = Modifier
-                            .padding(horizontal = MaterialTheme.spacing.sm)
-                            .clip(MaterialTheme.shapes.medium)
-                            .clickable(onClickLabel = stringResource(R.string.note_open_page, note.page + 1)) {
-                                scope.launch { sheetState.hide() }
-                                    .invokeOnCompletion { actions.onJumpToNote(note.id) }
-                            },
-                    )
-                }
-            }
-        }
-    }
-}
-
 private val HandleRadius = 9.dp
 private val HandleTouchRadius = 28.dp
 private val MarkStroke = 2.dp
@@ -933,8 +808,6 @@ private tailrec fun Context.findActivity(): Activity? = when (this) {
     else -> null
 }
 
-private val NoteFieldMinHeight = 120.dp
-private val SheetStateHeight = 160.dp
 
 private val PreviewOutline = listOf(
     OutlineEntry("Preface", 0, 0),
@@ -968,6 +841,7 @@ private fun ReaderPreviewContent(state: ReaderUiState, markup: MarkupState = Mar
         noteActions = NoteActions.None,
         readerActions = ReaderActions.None,
         onBack = {},
+        onOpenNotes = {},
         onPageSettled = {},
         onPageRequestHandled = {},
         onZoomGestureStart = {},
@@ -1024,6 +898,7 @@ private fun ReaderErrorPreview() {
             noteActions = NoteActions.None,
             readerActions = ReaderActions.None,
             onBack = {},
+            onOpenNotes = {},
             onPageSettled = {},
             onPageRequestHandled = {},
             onZoomGestureStart = {},
