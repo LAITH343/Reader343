@@ -5,6 +5,7 @@ import android.graphics.Color
 import android.graphics.RectF
 import android.os.ParcelFileDescriptor
 import com.reader343.di.PdfDispatcher
+import com.reader343.domain.NormRect
 import io.legere.pdfiumandroid.PdfDocument
 import io.legere.pdfiumandroid.PdfiumCore
 import kotlinx.coroutines.CoroutineDispatcher
@@ -67,6 +68,40 @@ class PdfEngine @Inject constructor(
             bitmap
         }
 
+    suspend fun loadText(index: Int): PageText = withContext(dispatcher) {
+        val doc = checkNotNull(document) { "Document not open" }
+        val page = doc.openPage(index) ?: return@withContext PageText(index, emptyList())
+        page.use {
+            val size = pageSizes[index]
+            val probeX = size.widthPt.toDouble()
+            val probeY = size.heightPt.toDouble()
+            val origin = page.mapPageCoordsToDevice(0, 0, DEVICE_UNITS, DEVICE_UNITS, 0, 0.0, 0.0)
+            val alongX = page.mapPageCoordsToDevice(0, 0, DEVICE_UNITS, DEVICE_UNITS, 0, probeX, 0.0)
+            val alongY = page.mapPageCoordsToDevice(0, 0, DEVICE_UNITS, DEVICE_UNITS, 0, 0.0, probeY)
+            val xx = (alongX.x - origin.x) / (probeX * DEVICE_UNITS)
+            val xy = (alongY.x - origin.x) / (probeY * DEVICE_UNITS)
+            val yx = (alongX.y - origin.y) / (probeX * DEVICE_UNITS)
+            val yy = (alongY.y - origin.y) / (probeY * DEVICE_UNITS)
+            val ox = origin.x.toDouble() / DEVICE_UNITS
+            val oy = origin.y.toDouble() / DEVICE_UNITS
+
+            page.openTextPage().use { text ->
+                val count = text.textPageCountChars().coerceAtLeast(0)
+                val chars = List(count) { i ->
+                    val box = text.textPageGetCharBox(i)?.let { b ->
+                        val x1 = (ox + xx * b.left + xy * b.top).toFloat()
+                        val y1 = (oy + yx * b.left + yy * b.top).toFloat()
+                        val x2 = (ox + xx * b.right + xy * b.bottom).toFloat()
+                        val y2 = (oy + yx * b.right + yy * b.bottom).toFloat()
+                        NormRect.spanning(x1, y1, x2, y2).takeUnless { it.isEmpty }
+                    }
+                    TextChar(text.textPageGetUnicode(i), box)
+                }
+                PageText(index, chars)
+            }
+        }
+    }
+
     suspend fun close() = withContext(dispatcher) {
         document?.close()
         document = null
@@ -75,6 +110,7 @@ class PdfEngine @Inject constructor(
 
     companion object {
         const val POINTS_DPI = 72
+        private const val DEVICE_UNITS = 1_000_000
         val FULL_PAGE = RectF(0f, 0f, 1f, 1f)
     }
 }

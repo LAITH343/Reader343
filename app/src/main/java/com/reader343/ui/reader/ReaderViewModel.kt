@@ -10,11 +10,17 @@ import androidx.compose.ui.unit.IntSize
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.reader343.data.repo.HighlightRepository
 import com.reader343.data.repo.ReaderRepository
 import com.reader343.di.ApplicationScope
+import com.reader343.domain.Highlight
+import com.reader343.domain.NewHighlight
+import com.reader343.domain.NormRect
 import com.reader343.pdf.PageBitmapCache
 import com.reader343.pdf.PageSize
+import com.reader343.pdf.PageText
 import com.reader343.pdf.PdfEngine
+import com.reader343.pdf.TextLayer
 import com.reader343.ui.nav.Routes
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CancellationException
@@ -58,9 +64,10 @@ class PageDetail(val page: Int, val region: Rect, val bitmap: ImageBitmap)
 class ReaderViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val repository: ReaderRepository,
+    private val highlightRepository: HighlightRepository,
     private val engine: PdfEngine,
     @ApplicationScope private val appScope: CoroutineScope,
-) : ViewModel() {
+) : ViewModel(), MarkupActions {
 
     private val bookId: Long = checkNotNull(savedStateHandle[Routes.ARG_BOOK_ID])
 
@@ -73,13 +80,23 @@ class ReaderViewModel @Inject constructor(
     private val _detail = MutableStateFlow<PageDetail?>(null)
     val detail: StateFlow<PageDetail?> = _detail.asStateFlow()
 
+    private val _markup = MutableStateFlow(MarkupState())
+    val markup: StateFlow<MarkupState> = _markup.asStateFlow()
+
     private val cache = PageBitmapCache()
+    private val textLayer = TextLayer(engine)
+    private var draft: SelectionDraft? = null
+    private var activeHandle = SelectionHandle.End
+    private var grabOffset = Offset.Zero
+    private var pendingDrag: Offset? = null
+    private var selectionColor = HighlightColor.entries.first().argb
     private val inFlight = mutableMapOf<PageBitmapCache.Key, Deferred<Bitmap?>>()
     private val currentPage = MutableStateFlow(0)
     private var viewport = IntSize.Zero
     private var pageCount = 0
     private var savedPage = -1
     private var chromeJob: Job? = null
+    private var selectionJob: Job? = null
 
     init {
         viewModelScope.launch { load() }
@@ -121,6 +138,19 @@ class ReaderViewModel @Inject constructor(
         viewModelScope.launch {
             _zoom.debounce(DETAIL_DEBOUNCE_MS).collectLatest { renderDetail(it) }
         }
+        viewModelScope.launch {
+            highlightRepository.observeByPage(bookId).collect { highlights ->
+                _markup.update { state ->
+                    state.copy(
+                        highlights = highlights,
+                        activeHighlight = state.activeHighlight?.let { active ->
+                            highlights[active.page]?.firstOrNull { it.id == active.id }
+                        },
+                    )
+                }
+            }
+        }
+        preloadText(initial)
     }
 
     fun onViewportChanged(size: IntSize) {
@@ -136,7 +166,9 @@ class ReaderViewModel @Inject constructor(
         currentPage.value = page
         _zoom.value = ZoomState()
         _detail.value = null
+        clearSelection()
         updateReady { it.copy(currentPage = page) }
+        preloadText(page)
     }
 
     fun onTransform(centroid: Offset, pan: Offset, factor: Float) {
@@ -155,7 +187,212 @@ class ReaderViewModel @Inject constructor(
         }
     }
 
-    fun onTap() {
+    fun onTap(position: Offset) {
+        if (draft != null || _markup.value.activeHighlight != null) {
+            clearSelection()
+            return
+        }
+        val hit = highlightAt(position)
+        if (hit != null) {
+            _markup.update { it.copy(activeHighlight = hit) }
+            return
+        }
+        toggleChrome()
+    }
+
+    override fun onLongPress(position: Offset) {
+        val page = currentPage.value
+        val layout = layoutFor(page) ?: return
+        val point = layout.toNormalized(_zoom.value, position)
+        if (point.x !in 0f..1f || point.y !in 0f..1f) return
+        clearSelection()
+        val cached = textLayer.peek(page)
+        if (cached != null) {
+            startSelection(page, point, cached)
+        } else {
+            selectionJob = viewModelScope.launch {
+                val text = loadText(page)
+                if (page == currentPage.value) startSelection(page, point, text)
+            }
+        }
+    }
+
+    override fun onHandleGrab(handle: SelectionHandle, grabOffset: Offset) {
+        activeHandle = handle
+        this.grabOffset = grabOffset
+    }
+
+    override fun onSelectionDrag(position: Offset) {
+        val current = draft
+        if (current == null) {
+            pendingDrag = position
+            return
+        }
+        val layout = layoutFor(current.page) ?: return
+        val point = layout.toNormalized(_zoom.value, position + grabOffset)
+        draft = when (current) {
+            is SelectionDraft.Text -> dragText(current, point, layout) ?: return
+            is SelectionDraft.Region -> {
+                val clamped = Offset(point.x.coerceIn(0f, 1f), point.y.coerceIn(0f, 1f))
+                if (activeHandle == SelectionHandle.End) current.copy(end = clamped) else current.copy(start = clamped)
+            }
+        }
+        publishSelection()
+    }
+
+    override fun onSelectionDragEnd() {
+        grabOffset = Offset.Zero
+        pendingDrag = null
+    }
+
+    override fun onColorSelected(color: Int) {
+        selectionColor = color
+        _markup.update { state -> state.copy(selection = state.selection?.copy(color = color)) }
+    }
+
+    override fun onConfirmHighlight() {
+        val current = draft ?: return
+        val highlight = when (current) {
+            is SelectionDraft.Text -> {
+                val text = textLayer.peek(current.page)
+                val rects = text?.rectsFor(current.start, current.end).orEmpty()
+                if (text == null || rects.isEmpty()) {
+                    null
+                } else {
+                    NewHighlight(
+                        page = current.page,
+                        rects = rects,
+                        color = selectionColor,
+                        charStart = current.start,
+                        charEnd = current.end + 1,
+                        snippet = text.textFor(current.start, current.end).ifEmpty { null },
+                    )
+                }
+            }
+            is SelectionDraft.Region -> current.rect()?.let { rect ->
+                NewHighlight(
+                    page = current.page,
+                    rects = listOf(rect),
+                    color = selectionColor,
+                    charStart = null,
+                    charEnd = null,
+                    snippet = null,
+                )
+            }
+        }
+        clearSelection()
+        if (highlight != null) viewModelScope.launch { highlightRepository.add(bookId, highlight) }
+    }
+
+    override fun onDeleteHighlight() {
+        val active = _markup.value.activeHighlight ?: return
+        clearSelection()
+        viewModelScope.launch { highlightRepository.delete(active.id) }
+    }
+
+    private fun startSelection(page: Int, point: Offset, text: PageText?) {
+        val aspect = engine.pageSize(page).aspectRatio
+        val index = text?.takeIf { it.hasText }
+            ?.charNear(point.x, point.y, aspect, TEXT_HIT_SLOP / _zoom.value.scale)
+        draft = if (text != null && index != null) {
+            val word = text.wordRange(index)
+            SelectionDraft.Text(page, word.first, word.last)
+        } else {
+            SelectionDraft.Region(page, point, point)
+        }
+        activeHandle = SelectionHandle.End
+        grabOffset = Offset.Zero
+        publishSelection()
+        pendingDrag?.let { onSelectionDrag(it) }
+        pendingDrag = null
+    }
+
+    private fun dragText(current: SelectionDraft.Text, point: Offset, layout: PageLayout): SelectionDraft.Text? {
+        val text = textLayer.peek(current.page) ?: return null
+        val aspect = layout.page.width / layout.page.height
+        val index = text.nearestChar(point.x, point.y, aspect) ?: return null
+        return if (activeHandle == SelectionHandle.End) {
+            if (index >= current.start) {
+                current.copy(end = index)
+            } else {
+                activeHandle = SelectionHandle.Start
+                current.copy(start = index, end = current.start)
+            }
+        } else {
+            if (index <= current.end) {
+                current.copy(start = index)
+            } else {
+                activeHandle = SelectionHandle.End
+                current.copy(start = current.end, end = index)
+            }
+        }
+    }
+
+    private fun publishSelection() {
+        val selection = when (val current = draft) {
+            null -> null
+            is SelectionDraft.Text -> {
+                val rects = textLayer.peek(current.page)?.rectsFor(current.start, current.end).orEmpty()
+                val first = rects.firstOrNull()
+                val last = rects.lastOrNull()
+                if (first == null || last == null) {
+                    null
+                } else {
+                    SelectionUi(
+                        page = current.page,
+                        rects = rects,
+                        start = HandleMark(first.left, first.top, first.bottom),
+                        end = HandleMark(last.right, last.top, last.bottom),
+                        region = false,
+                        color = selectionColor,
+                    )
+                }
+            }
+            is SelectionDraft.Region -> SelectionUi(
+                page = current.page,
+                rects = listOfNotNull(current.rect()),
+                start = HandleMark(current.start.x, current.start.y, current.start.y),
+                end = HandleMark(current.end.x, current.end.y, current.end.y),
+                region = true,
+                color = selectionColor,
+            )
+        }
+        _markup.update { it.copy(selection = selection, activeHighlight = null) }
+    }
+
+    private fun clearSelection() {
+        selectionJob?.cancel()
+        selectionJob = null
+        draft = null
+        pendingDrag = null
+        grabOffset = Offset.Zero
+        _markup.update { it.copy(selection = null, activeHighlight = null) }
+    }
+
+    private fun highlightAt(position: Offset): Highlight? {
+        val page = currentPage.value
+        val layout = layoutFor(page) ?: return null
+        val point = layout.toNormalized(_zoom.value, position)
+        val slop = HIGHLIGHT_HIT_SLOP / _zoom.value.scale
+        val aspect = layout.page.width / layout.page.height
+        return _markup.value.highlights[page]
+            ?.lastOrNull { it.contains(point.x, point.y, slop, slop * aspect) }
+    }
+
+    private fun preloadText(page: Int) {
+        viewModelScope.launch { loadText(page) }
+    }
+
+    private suspend fun loadText(page: Int): PageText? =
+        try {
+            textLayer.get(page)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Throwable) {
+            null
+        }
+
+    private fun toggleChrome() {
         val ready = _uiState.value as? ReaderUiState.Ready ?: return
         if (ready.chromeVisible) {
             chromeJob?.cancel()
@@ -256,6 +493,18 @@ class ReaderViewModel @Inject constructor(
             engine.close()
         }
         cache.clear()
+        textLayer.clear()
+    }
+
+    private sealed interface SelectionDraft {
+        val page: Int
+
+        data class Text(override val page: Int, val start: Int, val end: Int) : SelectionDraft
+
+        data class Region(override val page: Int, val start: Offset, val end: Offset) : SelectionDraft {
+            fun rect(): NormRect? = NormRect.spanning(start.x, start.y, end.x, end.y)
+                .takeIf { it.width >= MIN_REGION_SIZE && it.height >= MIN_REGION_SIZE }
+        }
     }
 
     private companion object {
@@ -264,5 +513,8 @@ class ReaderViewModel @Inject constructor(
         const val CHROME_HIDE_MS = 3_000L
         const val DETAIL_MIN_SCALE = 1.25f
         const val MAX_BASE_WIDTH_PX = 4096
+        const val TEXT_HIT_SLOP = 0.03f
+        const val HIGHLIGHT_HIT_SLOP = 0.004f
+        const val MIN_REGION_SIZE = 0.01f
     }
 }

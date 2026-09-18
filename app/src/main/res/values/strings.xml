@@ -21,6 +21,13 @@
     <string name="reader_open_failed">Couldn\'t open this book</string>
     <string name="reader_page_indicator">%1$d / %2$d</string>
     <string name="reader_page_loading">Loading page %1$d</string>
+    <string name="highlight_confirm">Save highlight</string>
+    <string name="highlight_delete">Delete highlight</string>
+    <string name="highlight_color_yellow">Yellow</string>
+    <string name="highlight_color_green">Green</string>
+    <string name="highlight_color_blue">Blue</string>
+    <string name="highlight_color_pink">Pink</string>
+    <string name="highlight_color_orange">Orange</string>
     <string name="stats_title">Stats</string>
     <string name="action_stats">Stats</string>
     <string name="action_back">Back</string>

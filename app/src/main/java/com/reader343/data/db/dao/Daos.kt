@@ -7,6 +7,7 @@ import androidx.room.Query
 import androidx.room.Transaction
 import com.reader343.data.db.entity.BookEntity
 import com.reader343.data.db.entity.BookWithProgressRow
+import com.reader343.data.db.entity.HighlightEntity
 import com.reader343.data.db.entity.ProgressEntity
 import kotlinx.coroutines.flow.Flow
 
@@ -42,7 +43,16 @@ interface ProgressDao {
 }
 
 @Dao
-interface HighlightDao
+interface HighlightDao {
+    @Query("SELECT * FROM highlights WHERE bookId = :bookId ORDER BY page, createdAt")
+    fun observeByBook(bookId: Long): Flow<List<HighlightEntity>>
+
+    @Insert
+    suspend fun insert(highlight: HighlightEntity): Long
+
+    @Query("DELETE FROM highlights WHERE id = :id")
+    suspend fun deleteById(id: Long)
+}
 
 @Dao
 interface NoteDao

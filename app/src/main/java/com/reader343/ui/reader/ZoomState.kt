@@ -4,6 +4,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.unit.IntSize
+import com.reader343.domain.NormRect
 import com.reader343.pdf.PageSize
 
 data class ZoomState(
@@ -47,6 +48,26 @@ data class PageLayout(val viewport: IntSize, val page: Rect) {
         val bottom = (((viewport.height - zoom.offsetY) / zoom.scale - page.top) / page.height).coerceIn(0f, 1f)
         if (right <= left || bottom <= top) return null
         return Rect(left, top, right, bottom)
+    }
+
+    fun toNormalized(zoom: ZoomState, screen: Offset): Offset = Offset(
+        x = ((screen.x - zoom.offsetX) / zoom.scale - page.left) / page.width,
+        y = ((screen.y - zoom.offsetY) / zoom.scale - page.top) / page.height,
+    )
+
+    fun toContent(x: Float, y: Float): Offset =
+        Offset(page.left + x * page.width, page.top + y * page.height)
+
+    fun toContent(rect: NormRect): Rect = Rect(
+        left = page.left + rect.left * page.width,
+        top = page.top + rect.top * page.height,
+        right = page.left + rect.right * page.width,
+        bottom = page.top + rect.bottom * page.height,
+    )
+
+    fun toScreen(zoom: ZoomState, x: Float, y: Float): Offset {
+        val content = toContent(x, y)
+        return Offset(content.x * zoom.scale + zoom.offsetX, content.y * zoom.scale + zoom.offsetY)
     }
 
     private fun clampAxis(offset: Float, scale: Float, start: Float, end: Float, extent: Float): Float {
