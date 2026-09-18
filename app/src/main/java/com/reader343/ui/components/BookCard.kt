@@ -82,7 +82,7 @@ fun BookCard(
                 Box {
                     IconButton(onClick = { menuOpen = true }) {
                         Icon(
-                            painter = painterResource(R.drawable.ic_more_vert),
+                            painter = painterResource(R.drawable.ic_ph_dots_three_vertical),
                             contentDescription = stringResource(R.string.action_more),
                         )
                     }
@@ -91,7 +91,7 @@ fun BookCard(
                             text = { Text(removeLabel, color = MaterialTheme.colorScheme.error) },
                             leadingIcon = {
                                 Icon(
-                                    painter = painterResource(R.drawable.ic_delete),
+                                    painter = painterResource(R.drawable.ic_ph_trash),
                                     contentDescription = null,
                                     tint = MaterialTheme.colorScheme.error,
                                 )

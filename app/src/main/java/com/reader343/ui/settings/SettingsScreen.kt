@@ -24,10 +24,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TimePicker
@@ -63,9 +59,12 @@ import com.reader343.domain.GoalUnit
 import com.reader343.domain.PageAppearance
 import com.reader343.domain.ThemeMode
 import com.reader343.ui.components.AppCard
+import com.reader343.ui.components.AppSwitch
 import com.reader343.ui.components.AppTopBar
 import com.reader343.ui.components.LoadingState
 import com.reader343.ui.components.SectionHeader
+import com.reader343.ui.components.SegmentItem
+import com.reader343.ui.components.SegmentedControl
 import com.reader343.ui.components.currentLocale
 import com.reader343.ui.components.formatMinutes
 import com.reader343.ui.components.formatNumber
@@ -145,7 +144,7 @@ private fun NotificationRationaleDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        icon = { Icon(painterResource(R.drawable.ic_library), contentDescription = null) },
+        icon = { Icon(painterResource(R.drawable.ic_ph_books), contentDescription = null) },
         title = { Text(stringResource(R.string.notifications_rationale_title)) },
         text = { Text(stringResource(R.string.notifications_rationale)) },
         confirmButton = {
@@ -384,17 +383,12 @@ private fun <T> ChoiceRow(
         verticalArrangement = Arrangement.spacedBy(spacing.md),
     ) {
         Text(text = title, style = MaterialTheme.typography.bodyLarge)
-        SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-            options.forEachIndexed { index, option ->
-                SegmentedButton(
-                    selected = option == selected,
-                    onClick = { onSelect(option) },
-                    shape = SegmentedButtonDefaults.itemShape(index, options.size),
-                ) {
-                    Text(text = stringResource(label(option)), maxLines = 1)
-                }
-            }
-        }
+        SegmentedControl(
+            items = options.map { SegmentItem(stringResource(label(it))) },
+            selectedIndex = options.indexOf(selected),
+            onSelect = { onSelect(options[it]) },
+            modifier = Modifier.fillMaxWidth(),
+        )
     }
 }
 
@@ -429,7 +423,7 @@ private fun SwitchRow(
     ListItem(
         headlineContent = { Text(title) },
         supportingContent = { Text(summary) },
-        trailingContent = { Switch(checked = checked, onCheckedChange = null, enabled = enabled) },
+        trailingContent = { AppSwitch(checked = checked, onCheckedChange = null, enabled = enabled) },
         modifier = Modifier.toggleable(
             value = checked,
             enabled = enabled,
@@ -451,7 +445,7 @@ private fun WarningRow(
         supportingContent = { Text(summary) },
         leadingContent = {
             Icon(
-                painter = painterResource(R.drawable.ic_error),
+                painter = painterResource(R.drawable.ic_ph_warning_circle),
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.error,
             )
@@ -493,17 +487,12 @@ private fun GoalDialog(
         title = { Text(stringResource(R.string.settings_daily_goal)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.lg)) {
-                SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-                    GoalUnit.entries.forEachIndexed { index, entry ->
-                        SegmentedButton(
-                            selected = entry == unit,
-                            onClick = { unit = entry },
-                            shape = SegmentedButtonDefaults.itemShape(index, GoalUnit.entries.size),
-                        ) {
-                            Text(stringResource(entry.labelRes))
-                        }
-                    }
-                }
+                SegmentedControl(
+                    items = GoalUnit.entries.map { SegmentItem(stringResource(it.labelRes)) },
+                    selectedIndex = unit.ordinal,
+                    onSelect = { unit = GoalUnit.entries[it] },
+                    modifier = Modifier.fillMaxWidth(),
+                )
                 OutlinedTextField(
                     value = input,
                     onValueChange = { next -> input = next.filter(Char::isDigit).take(GoalDigits) },

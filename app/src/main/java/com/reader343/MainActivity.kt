@@ -2,6 +2,7 @@ package com.reader343
 
 import android.content.Intent
 import android.graphics.Color
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
@@ -52,10 +53,13 @@ class MainActivity : AppCompatActivity() {
             settings?.let { loaded ->
                 val darkTheme = loaded.isDark(systemDark)
                 DisposableEffect(darkTheme) {
-                    enableEdgeToEdge(
-                        statusBarStyle = SystemBarStyle.auto(Color.TRANSPARENT, Color.TRANSPARENT) { darkTheme },
-                        navigationBarStyle = SystemBarStyle.auto(LightScrim, DarkScrim) { darkTheme },
-                    )
+                    val style = if (darkTheme) {
+                        SystemBarStyle.dark(Color.TRANSPARENT)
+                    } else {
+                        SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT)
+                    }
+                    enableEdgeToEdge(statusBarStyle = style, navigationBarStyle = style)
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) window.isNavigationBarContrastEnforced = false
                     onDispose {}
                 }
                 Reader343Theme(darkTheme = darkTheme) {
@@ -83,7 +87,5 @@ class MainActivity : AppCompatActivity() {
 
     companion object {
         const val ACTION_CONTINUE_READING = "com.reader343.action.CONTINUE_READING"
-        private val LightScrim = Color.argb(0xE6, 0xFF, 0xFF, 0xFF)
-        private val DarkScrim = Color.argb(0x80, 0x1B, 0x1B, 0x1B)
     }
 }

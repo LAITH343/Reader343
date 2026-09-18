@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -24,6 +23,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.reader343.R
+import com.reader343.ui.theme.appColors
 import com.reader343.ui.theme.spacing
 
 @Composable
@@ -57,7 +57,7 @@ fun StateContent(
         Icon(
             painter = painterResource(icon),
             contentDescription = null,
-            tint = MaterialTheme.colorScheme.primary,
+            tint = MaterialTheme.appColors.acc,
             modifier = Modifier.size(StateIconSize),
         )
         Text(
@@ -69,7 +69,7 @@ fun StateContent(
         Text(
             text = body,
             style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            color = MaterialTheme.appColors.ink3,
             textAlign = TextAlign.Center,
         )
         if (action != null) {
@@ -86,12 +86,12 @@ fun ErrorState(
     onAction: (() -> Unit)? = null,
 ) {
     EmptyState(
-        icon = R.drawable.ic_error,
+        icon = R.drawable.ic_ph_warning_circle,
         title = message,
         body = stringResource(R.string.state_error_hint),
         modifier = modifier,
         action = if (actionLabel != null && onAction != null) {
-            { FilledTonalButton(onClick = onAction) { Text(actionLabel) } }
+            { PrimaryButton(text = actionLabel, onClick = onAction) }
         } else {
             null
         },
@@ -104,7 +104,11 @@ fun LoadingState(
     description: String = stringResource(R.string.state_loading),
 ) {
     Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        CircularProgressIndicator(Modifier.semantics { contentDescription = description })
+        CircularProgressIndicator(
+            modifier = Modifier.semantics { contentDescription = description },
+            color = MaterialTheme.appColors.acc,
+            trackColor = MaterialTheme.appColors.line2,
+        )
     }
 }
 

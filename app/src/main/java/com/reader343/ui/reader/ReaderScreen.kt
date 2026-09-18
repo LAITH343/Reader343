@@ -16,6 +16,7 @@ import androidx.compose.ui.unit.LayoutDirection
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import com.reader343.ui.components.AppBottomSheet
 import com.reader343.ui.components.AppTopBar
 import com.reader343.ui.components.BookProgress
 import com.reader343.ui.components.ErrorState
@@ -23,7 +24,9 @@ import com.reader343.ui.components.FloatingToolbar
 import com.reader343.ui.components.IconTextButton
 import com.reader343.ui.components.LoadingState
 import com.reader343.ui.components.Motion
+import com.reader343.ui.components.PrimaryButton
 import com.reader343.ui.components.QuoteBlock
+import com.reader343.ui.components.SecondaryButton
 import com.reader343.ui.components.SheetHeader
 import com.reader343.ui.components.StateContent
 import com.reader343.ui.components.TopBarAction
@@ -42,11 +45,9 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.rememberCoroutineScope
@@ -85,7 +86,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -366,7 +366,7 @@ private fun PdfPage(
     val accent = MaterialTheme.colorScheme.primary
     val markerColor = MaterialTheme.colorScheme.tertiary
     val markerContent = MaterialTheme.colorScheme.onTertiary
-    val notePainter = painterResource(R.drawable.ic_note)
+    val notePainter = painterResource(R.drawable.ic_ph_note)
     val currentNotes by rememberUpdatedState(notes)
     val currentNoteActions by rememberUpdatedState(noteActions)
     val currentZoom by rememberUpdatedState(zoom)
@@ -775,13 +775,13 @@ private fun SelectionPalette(
         }
         IconButton(onClick = onAddNote, enabled = canConfirm) {
             Icon(
-                painter = painterResource(R.drawable.ic_note_add),
+                painter = painterResource(R.drawable.ic_ph_note_pencil),
                 contentDescription = stringResource(R.string.note_add),
             )
         }
         IconButton(onClick = onConfirm, enabled = canConfirm) {
             Icon(
-                painter = painterResource(R.drawable.ic_check),
+                painter = painterResource(R.drawable.ic_ph_check),
                 contentDescription = stringResource(R.string.highlight_confirm),
             )
         }
@@ -822,7 +822,7 @@ private fun ColorSwatch(
         ) {
             if (selected) {
                 Icon(
-                    painter = painterResource(R.drawable.ic_check),
+                    painter = painterResource(R.drawable.ic_ph_check),
                     contentDescription = null,
                     tint = SwatchCheckColor,
                     modifier = Modifier.size(SwatchCheckSize),
@@ -841,12 +841,12 @@ private fun HighlightMenu(
 ) {
     FloatingToolbar(modifier = modifier) {
         IconTextButton(
-            icon = if (hasNote) R.drawable.ic_note else R.drawable.ic_note_add,
+            icon = if (hasNote) R.drawable.ic_ph_note else R.drawable.ic_ph_note_pencil,
             text = stringResource(if (hasNote) R.string.note_view else R.string.note_add),
             onClick = onNote,
         )
         IconTextButton(
-            icon = R.drawable.ic_delete,
+            icon = R.drawable.ic_ph_trash,
             text = stringResource(R.string.highlight_delete),
             onClick = onDelete,
             destructive = true,
@@ -873,7 +873,7 @@ private fun NoteSheet(editor: NoteEditor, actions: NoteActions) {
         if (isNew) focusRequester.requestFocus()
     }
 
-    ModalBottomSheet(onDismissRequest = actions::onDismissNote, sheetState = sheetState) {
+    AppBottomSheet(onDismissRequest = actions::onDismissNote, sheetState = sheetState) {
         SheetHeader(
             title = stringResource(if (isNew) R.string.note_new else R.string.note_title),
             trailing = stringResource(R.string.note_page, editor.page + 1),
@@ -904,19 +904,22 @@ private fun NoteSheet(editor: NoteEditor, actions: NoteActions) {
             ) {
                 if (!isNew) {
                     IconTextButton(
-                        icon = R.drawable.ic_delete,
+                        icon = R.drawable.ic_ph_trash,
                         text = stringResource(R.string.note_delete),
                         onClick = { hideThen(actions::onDeleteNote) },
                         destructive = true,
                     )
                 }
                 Spacer(Modifier.weight(1f))
-                TextButton(onClick = { hideThen(actions::onDismissNote) }) {
-                    Text(stringResource(R.string.action_cancel))
-                }
-                Button(onClick = { hideThen { actions.onSaveNote(body) } }, enabled = canSave) {
-                    Text(stringResource(R.string.note_save))
-                }
+                SecondaryButton(
+                    text = stringResource(R.string.action_cancel),
+                    onClick = { hideThen(actions::onDismissNote) },
+                )
+                PrimaryButton(
+                    text = stringResource(R.string.note_save),
+                    onClick = { hideThen { actions.onSaveNote(body) } },
+                    enabled = canSave,
+                )
             }
         }
     }
@@ -929,12 +932,12 @@ private fun NotesListSheet(notes: NotesUiState, actions: NoteActions) {
     val scope = rememberCoroutineScope()
     val all = notes.all
 
-    ModalBottomSheet(onDismissRequest = actions::onHideNotes, sheetState = sheetState) {
+    AppBottomSheet(onDismissRequest = actions::onHideNotes, sheetState = sheetState) {
         SheetHeader(title = stringResource(R.string.notes_title))
         when {
             !notes.loaded -> LoadingState(Modifier.heightIn(max = SheetStateHeight))
             all.isEmpty() -> StateContent(
-                icon = R.drawable.ic_notes,
+                icon = R.drawable.ic_ph_note,
                 title = stringResource(R.string.notes_empty),
                 body = stringResource(R.string.notes_empty_hint),
                 modifier = Modifier.align(Alignment.CenterHorizontally),
@@ -1012,7 +1015,7 @@ private fun ReaderTopBar(
                 containerColor = MaterialTheme.colorScheme.surfaceContainer,
                 actions = {
                     TopBarAction(
-                        icon = R.drawable.ic_notes,
+                        icon = R.drawable.ic_ph_note,
                         contentDescription = stringResource(R.string.notes_title),
                         onClick = onShowNotes,
                     )

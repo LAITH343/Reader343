@@ -134,12 +134,12 @@ fun LibraryScreen(
                         ImportAction(importing = importing, onClick = onImport)
                     }
                     TopBarAction(
-                        icon = R.drawable.ic_bar_chart,
+                        icon = R.drawable.ic_ph_chart_bar,
                         contentDescription = stringResource(R.string.action_stats),
                         onClick = onOpenStats,
                     )
                     TopBarAction(
-                        icon = R.drawable.ic_settings,
+                        icon = R.drawable.ic_ph_gear_six,
                         contentDescription = stringResource(R.string.action_settings),
                         onClick = onOpenSettings,
                     )
@@ -171,7 +171,7 @@ fun LibraryScreen(
                     onAction = onRetry,
                 )
                 LibraryUiState.Empty -> EmptyState(
-                    icon = R.drawable.ic_library,
+                    icon = R.drawable.ic_ph_books,
                     title = stringResource(R.string.library_empty),
                     body = stringResource(R.string.library_empty_hint),
                     action = { ImportButton(importing = importing, onClick = onImport) },
@@ -203,7 +203,7 @@ fun LibraryScreen(
 private fun ContinueFab(onClick: () -> Unit) {
     ExtendedFloatingActionButton(
         onClick = onClick,
-        icon = { Icon(painterResource(R.drawable.ic_play), contentDescription = null) },
+        icon = { Icon(painterResource(R.drawable.ic_ph_play), contentDescription = null) },
         text = { Text(stringResource(R.string.home_continue)) },
     )
 }
@@ -215,7 +215,7 @@ private fun ImportAction(importing: Boolean, onClick: () -> Unit) {
             ImportIcon(importing = true, description = stringResource(R.string.library_importing))
         } else {
             Icon(
-                painter = painterResource(R.drawable.ic_add),
+                painter = painterResource(R.drawable.ic_ph_plus),
                 contentDescription = stringResource(R.string.library_import),
             )
         }
@@ -261,7 +261,7 @@ private fun ImportIcon(importing: Boolean, description: String, size: Dp = FabIc
         )
     } else {
         Icon(
-            painter = painterResource(R.drawable.ic_add),
+            painter = painterResource(R.drawable.ic_ph_plus),
             contentDescription = null,
             modifier = Modifier.size(size),
         )
@@ -319,7 +319,7 @@ private fun DeleteBookDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        icon = { Icon(painterResource(R.drawable.ic_delete), contentDescription = null) },
+        icon = { Icon(painterResource(R.drawable.ic_ph_trash), contentDescription = null) },
         title = { Text(stringResource(R.string.delete_book_title)) },
         text = { Text(stringResource(R.string.delete_book_message, bidiWrap(title))) },
         confirmButton = {

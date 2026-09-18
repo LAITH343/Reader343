@@ -29,7 +29,6 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
@@ -51,6 +50,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupPositionProvider
 import androidx.compose.ui.window.PopupProperties
+import com.reader343.ui.theme.appColors
+import com.reader343.ui.theme.appShapes
 import com.reader343.ui.theme.spacing
 import java.time.LocalDate
 import java.time.format.TextStyle as DateTextStyle
@@ -263,7 +264,7 @@ fun HeatmapLegend(
             Box(
                 modifier = Modifier
                     .size(cellSize)
-                    .clip(MaterialTheme.shapes.extraSmall)
+                    .clip(MaterialTheme.appShapes.swatch)
                     .background(color),
             )
         }
@@ -291,14 +292,8 @@ private class HeatmapPalette(
 
 @Composable
 private fun heatmapPalette(): HeatmapPalette {
-    val scheme = MaterialTheme.colorScheme
-    return remember(scheme.primary, scheme.surfaceContainerHighest, scheme.surfaceContainerLow, scheme.onSurface) {
-        HeatmapPalette(
-            levels = listOf(scheme.surfaceContainerHighest) +
-                LEVEL_ALPHAS.map { scheme.primary.copy(alpha = it).compositeOver(scheme.surfaceContainerLow) },
-            selection = scheme.onSurface,
-        )
-    }
+    val colors = MaterialTheme.appColors
+    return remember(colors) { HeatmapPalette(levels = colors.heatRamp, selection = colors.ink) }
 }
 
 private class CellTooltipPosition(
@@ -325,4 +320,3 @@ private const val DAYS_PER_WEEK = 7
 private const val MIN_LABEL_GAP = 3
 private const val CORNER_FRACTION = 0.2f
 private const val SELECTION_STROKE = 1.5f
-private val LEVEL_ALPHAS = listOf(0.3f, 0.55f, 0.8f, 1f)

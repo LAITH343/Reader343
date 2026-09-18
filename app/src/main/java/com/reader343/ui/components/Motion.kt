@@ -2,6 +2,11 @@ package com.reader343.ui.components
 
 import android.provider.Settings
 import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -9,6 +14,10 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.State
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
 
@@ -44,3 +53,20 @@ object Motion {
             fadeOut(tween(SHORT_MS)) + slideOutVertically(tween(SHORT_MS)) { if (toTop) -it else it }
         }
 }
+
+@Immutable
+data class Pulse(val alpha: Float, val scale: Float)
+
+@Composable
+fun rememberPulse(enabled: Boolean, periodMs: Int): State<Pulse> {
+    val transition = rememberInfiniteTransition(label = "pulse")
+    val spec = infiniteRepeatable<Float>(tween(periodMs / 2, easing = FastOutSlowInEasing), RepeatMode.Reverse)
+    val alpha = transition.animateFloat(PULSE_ALPHA_MAX, PULSE_ALPHA_MIN, spec, label = "pulseAlpha")
+    val scale = transition.animateFloat(1f, PULSE_SCALE_MAX, spec, label = "pulseScale")
+    val still = remember { mutableStateOf(Pulse(PULSE_ALPHA_MAX, 1f)) }
+    return if (enabled) remember(alpha, scale) { derivedStateOf { Pulse(alpha.value, scale.value) } } else still
+}
+
+private const val PULSE_ALPHA_MAX = 0.55f
+private const val PULSE_ALPHA_MIN = 0.15f
+private const val PULSE_SCALE_MAX = 1.12f

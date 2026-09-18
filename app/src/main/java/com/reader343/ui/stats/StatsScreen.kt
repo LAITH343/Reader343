@@ -14,12 +14,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberTopAppBarState
@@ -55,7 +51,10 @@ import com.reader343.ui.components.CardEmphasis
 import com.reader343.ui.components.EmptyState
 import com.reader343.ui.components.ErrorState
 import com.reader343.ui.components.LoadingState
+import com.reader343.ui.components.PrimaryButton
 import com.reader343.ui.components.SectionHeader
+import com.reader343.ui.components.SegmentItem
+import com.reader343.ui.components.SegmentedControl
 import com.reader343.ui.components.StatTile
 import com.reader343.ui.components.formatDate
 import com.reader343.ui.components.formatDecimal
@@ -119,12 +118,12 @@ fun StatsScreen(
                 modifier = contentModifier,
             )
             StatsUiState.Empty -> EmptyState(
-                icon = R.drawable.ic_bar_chart,
+                icon = R.drawable.ic_ph_chart_bar,
                 title = stringResource(R.string.stats_empty),
                 body = stringResource(R.string.stats_empty_hint),
                 modifier = contentModifier,
                 action = {
-                    FilledTonalButton(onClick = onBack) { Text(stringResource(R.string.stats_go_library)) }
+                    PrimaryButton(text = stringResource(R.string.stats_go_library), onClick = onBack)
                 },
             )
             is StatsUiState.Content -> StatsContent(
@@ -208,21 +207,18 @@ private fun MetricSelector(
     metric: ChartMetric,
     onMetricSelected: (ChartMetric) -> Unit,
 ) {
-    SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-        ChartMetric.entries.forEachIndexed { index, entry ->
-            SegmentedButton(
-                selected = entry == metric,
-                onClick = { onMetricSelected(entry) },
-                shape = SegmentedButtonDefaults.itemShape(index, ChartMetric.entries.size),
-            ) {
-                Text(
-                    stringResource(
-                        if (entry == ChartMetric.Time) R.string.stats_metric_time else R.string.stats_metric_pages,
-                    ),
-                )
+    SegmentedControl(
+        items = ChartMetric.entries.map { entry ->
+            if (entry == ChartMetric.Time) {
+                SegmentItem(stringResource(R.string.stats_metric_time), R.drawable.ic_ph_clock)
+            } else {
+                SegmentItem(stringResource(R.string.stats_metric_pages), R.drawable.ic_ph_book_open_text)
             }
-        }
-    }
+        },
+        selectedIndex = metric.ordinal,
+        onSelect = { onMetricSelected(ChartMetric.entries[it]) },
+        modifier = Modifier.fillMaxWidth(),
+    )
 }
 
 @Composable

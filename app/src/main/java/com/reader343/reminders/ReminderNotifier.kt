@@ -77,7 +77,7 @@ class ReminderNotifier @Inject constructor(
             return
         }
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_library)
+            .setSmallIcon(R.drawable.ic_ph_books)
             .setContentTitle(title)
             .setContentText(body)
             .setStyle(NotificationCompat.BigTextStyle().bigText(body))
