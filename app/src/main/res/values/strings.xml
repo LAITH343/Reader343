@@ -1,3 +1,9 @@
 <resources>
     <string name="app_name">Reader343</string>
+    <string name="library_title">Library</string>
+    <string name="library_empty">Your library is empty</string>
+    <string name="reader_title">Reader</string>
+    <string name="stats_title">Stats</string>
+    <string name="action_stats">Stats</string>
+    <string name="action_back">Back</string>
 </resources>

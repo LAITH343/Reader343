@@ -1,4 +1,4 @@
-package com.example.reader343
+package com.reader343
 
 import org.junit.Test
 
