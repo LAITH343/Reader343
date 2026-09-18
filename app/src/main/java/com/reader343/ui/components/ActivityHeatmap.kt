@@ -1,7 +1,7 @@
 package com.reader343.ui.components
 
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
@@ -24,12 +25,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
@@ -38,26 +35,25 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntRect
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupPositionProvider
 import androidx.compose.ui.window.PopupProperties
 import com.reader343.ui.theme.appColors
 import com.reader343.ui.theme.appShapes
 import com.reader343.ui.theme.spacing
+import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.format.TextStyle as DateTextStyle
 import java.time.temporal.ChronoUnit
 import java.time.temporal.TemporalAdjusters
-import java.time.temporal.WeekFields
 import kotlin.math.ceil
 import kotlin.math.roundToInt
 
@@ -70,25 +66,22 @@ fun ActivityHeatmap(
     cellSize: Dp = HeatmapDefaults.CellSize,
     cellGap: Dp = HeatmapDefaults.CellGap,
     showLabels: Boolean = true,
+    cellDescription: (@Composable (date: LocalDate, value: Int) -> String)? = null,
     tooltip: (@Composable (date: LocalDate, value: Int) -> Unit)? = null,
 ) {
     val locale = currentLocale()
-    val firstDayOfWeek = remember(locale) { WeekFields.of(locale).firstDayOfWeek }
-    val start = remember(today, weeks, firstDayOfWeek) {
-        today.with(TemporalAdjusters.previousOrSame(firstDayOfWeek)).minusWeeks((weeks - 1).toLong())
+    val start = remember(today, weeks) {
+        today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY)).minusWeeks((weeks - 1).toLong())
     }
     val palette = heatmapPalette()
     val density = LocalDensity.current
     val rtl = LocalLayoutDirection.current == LayoutDirection.Rtl
-    val labelStyle = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
-    val measurer = rememberTextMeasurer()
+    val cellShape = MaterialTheme.appShapes.swatch
 
     val cellPx = with(density) { cellSize.toPx() }
     val gapPx = with(density) { cellGap.toPx() }
     val stepPx = cellPx + gapPx
-    val labelBandPx = if (showLabels) measurer.measure("M", labelStyle).size.height + gapPx * 2 else 0f
     val gridWidthPx = weeks * stepPx - gapPx
-    val gridHeightPx = labelBandPx + DAYS_PER_WEEK * stepPx - gapPx
 
     val max = remember(values, start, today) {
         values.filterKeys { !it.isBefore(start) && !it.isAfter(today) }.values.maxOrNull() ?: 0
@@ -108,7 +101,7 @@ fun ActivityHeatmap(
 
     fun cellAt(offset: Offset): LocalDate? {
         val x = if (rtl) gridWidthPx - offset.x else offset.x
-        val y = offset.y - labelBandPx
+        val y = offset.y
         if (x < 0f || y < 0f) return null
         val column = (x / stepPx).toInt()
         val row = (y / stepPx).toInt()
@@ -120,92 +113,85 @@ fun ActivityHeatmap(
 
     Row(modifier = modifier) {
         if (showLabels) {
-            val labels = remember(locale, firstDayOfWeek) {
-                (0 until DAYS_PER_WEEK).map { firstDayOfWeek.plus(it.toLong()).getDisplayName(DateTextStyle.SHORT, locale) }
+            val labels = remember(locale) {
+                (0 until DAYS_PER_WEEK).map { row ->
+                    if (row % 2 == 0) DayOfWeek.MONDAY.plus(row.toLong()).getDisplayName(DateTextStyle.NARROW_STANDALONE, locale) else ""
+                }
             }
-            val measured = labels.map { measurer.measure(it, labelStyle) }
-            val labelWidthPx = measured.maxOf { it.size.width }
-            Canvas(
+            Column(
                 modifier = Modifier
-                    .padding(end = cellGap * 2)
-                    .size(
-                        width = with(density) { labelWidthPx.toDp() },
-                        height = with(density) { gridHeightPx.toDp() },
-                    ),
+                    .padding(end = HeatmapDefaults.LabelGap)
+                    .clearAndSetSemantics {},
+                verticalArrangement = Arrangement.spacedBy(cellGap),
             ) {
-                measured.forEachIndexed { row, layout ->
-                    if (row % 2 == 0) return@forEachIndexed
-                    val top = labelBandPx + row * stepPx + (cellPx - layout.size.height) / 2f
-                    val left = if (rtl) size.width - layout.size.width else 0f
-                    drawText(layout, topLeft = Offset(left, top))
+                labels.forEach { label ->
+                    Box(modifier = Modifier.height(cellSize), contentAlignment = Alignment.CenterStart) {
+                        Text(
+                            text = label,
+                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp, lineHeight = 9.sp),
+                            color = MaterialTheme.appColors.ink3,
+                            maxLines = 1,
+                        )
+                    }
                 }
             }
         }
         Box(modifier = Modifier.horizontalScroll(scrollState)) {
-            Canvas(
-                modifier = Modifier
-                    .size(
-                        width = with(density) { gridWidthPx.toDp() },
-                        height = with(density) { gridHeightPx.toDp() },
-                    )
-                    .then(
-                        if (tooltip != null) {
-                            Modifier.pointerInput(start, weeks, rtl, stepPx, labelBandPx) {
-                                detectTapGestures { offset ->
-                                    val date = cellAt(offset)
-                                    selected = if (date == null || date == selected) null else date
-                                }
-                            }
-                        } else {
-                            Modifier
-                        },
-                    ),
-            ) {
-                val radius = CornerRadius(cellPx * CORNER_FRACTION, cellPx * CORNER_FRACTION)
-                if (showLabels) {
-                    var lastLabelColumn = -MIN_LABEL_GAP
-                    for (column in 0 until weeks) {
-                        val weekStart = start.plusWeeks(column.toLong())
-                        val previous = weekStart.minusWeeks(1)
-                        if (column > 0 && weekStart.month == previous.month) continue
-                        if (column - lastLabelColumn < MIN_LABEL_GAP) continue
-                        val layout = measurer.measure(weekStart.month.getDisplayName(DateTextStyle.SHORT, locale), labelStyle)
-                        val left = if (rtl) columnLeft(column) + cellPx - layout.size.width else columnLeft(column)
-                        drawText(layout, topLeft = Offset(left.coerceIn(0f, (size.width - layout.size.width).coerceAtLeast(0f)), 0f))
-                        lastLabelColumn = column
+            Row(
+                modifier = if (tooltip != null) {
+                    Modifier.pointerInput(start, weeks, rtl, stepPx) {
+                        detectTapGestures { offset ->
+                            val date = cellAt(offset)
+                            selected = if (date == null || date == selected) null else date
+                        }
                     }
-                }
+                } else {
+                    Modifier
+                },
+                horizontalArrangement = Arrangement.spacedBy(cellGap),
+            ) {
                 for (column in 0 until weeks) {
-                    for (row in 0 until DAYS_PER_WEEK) {
-                        val date = start.plusDays(column * DAYS_PER_WEEK.toLong() + row)
-                        if (date.isAfter(today)) break
-                        val value = values[date] ?: 0
-                        val topLeft = Offset(columnLeft(column), labelBandPx + row * stepPx)
-                        drawRoundRect(
-                            color = palette.colorFor(value, max),
-                            topLeft = topLeft,
-                            size = Size(cellPx, cellPx),
-                            cornerRadius = radius,
-                        )
-                        if (date == selected) {
-                            val stroke = SELECTION_STROKE.dp.toPx()
-                            drawRoundRect(
-                                color = palette.selection,
-                                topLeft = topLeft + Offset(stroke / 2f, stroke / 2f),
-                                size = Size(cellPx - stroke, cellPx - stroke),
-                                cornerRadius = radius,
-                                style = Stroke(width = stroke),
-                            )
+                    Column(verticalArrangement = Arrangement.spacedBy(cellGap)) {
+                        for (row in 0 until DAYS_PER_WEEK) {
+                            val date = start.plusDays(column * DAYS_PER_WEEK.toLong() + row)
+                            if (date.isAfter(today)) {
+                                Spacer(Modifier.size(cellSize))
+                            } else {
+                                val value = values[date] ?: 0
+                                val level = palette.levelFor(value, max)
+                                val chosen = date == selected
+                                val description = cellDescription?.invoke(date, value)
+                                Box(
+                                    modifier = Modifier
+                                        .size(cellSize)
+                                        .background(palette.levels[level], cellShape)
+                                        .border(
+                                            width = if (chosen) HeatmapDefaults.SelectionStroke else 1.dp,
+                                            color = when {
+                                                chosen -> palette.selection
+                                                level == 0 -> palette.emptyBorder
+                                                else -> Color.Transparent
+                                            },
+                                            shape = cellShape,
+                                        )
+                                        .then(
+                                            if (description != null) {
+                                                Modifier.semantics { contentDescription = description }
+                                            } else {
+                                                Modifier
+                                            },
+                                        ),
+                                )
+                            }
                         }
                     }
                 }
             }
             val date = selected
             if (tooltip != null && date != null && !date.isBefore(start) && !date.isAfter(today)) {
-                val column = ChronoUnit.DAYS.between(start, date).toInt() / DAYS_PER_WEEK
-                val row = ChronoUnit.DAYS.between(start, date).toInt() % DAYS_PER_WEEK
-                val left = columnLeft(column).roundToInt()
-                val top = (labelBandPx + row * stepPx).roundToInt()
+                val offset = ChronoUnit.DAYS.between(start, date).toInt()
+                val left = columnLeft(offset / DAYS_PER_WEEK).roundToInt()
+                val top = ((offset % DAYS_PER_WEEK) * stepPx).roundToInt()
                 val cell = IntRect(left, top, left + cellPx.roundToInt(), top + cellPx.roundToInt())
                 val margin = with(density) { cellGap.roundToPx() * 2 }
                 Popup(
@@ -247,53 +233,62 @@ fun HeatmapLegend(
     lessLabel: String,
     moreLabel: String,
     modifier: Modifier = Modifier,
-    cellSize: Dp = HeatmapDefaults.CellSize,
-    cellGap: Dp = HeatmapDefaults.CellGap,
+    cellSize: Dp = HeatmapDefaults.LegendCellSize,
 ) {
     val palette = heatmapPalette()
+    val shape = MaterialTheme.appShapes.swatch
     Row(
         modifier = modifier.clearAndSetSemantics {},
-        horizontalArrangement = Arrangement.spacedBy(cellGap),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        val labelStyle = MaterialTheme.typography.labelSmall
-        val labelColor = MaterialTheme.colorScheme.onSurfaceVariant
+        val labelStyle = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp)
+        val labelColor = MaterialTheme.appColors.ink3
         Text(text = lessLabel, style = labelStyle, color = labelColor)
-        Spacer(Modifier.size(cellGap))
         palette.levels.forEach { color ->
             Box(
                 modifier = Modifier
                     .size(cellSize)
-                    .clip(MaterialTheme.appShapes.swatch)
-                    .background(color),
+                    .background(color, shape)
+                    .border(1.dp, palette.legendBorder, shape),
             )
         }
-        Spacer(Modifier.size(cellGap))
         Text(text = moreLabel, style = labelStyle, color = labelColor)
     }
 }
 
 object HeatmapDefaults {
-    val CellSize = 14.dp
+    val CellSize = 13.dp
     val CellGap = 3.dp
+    val LegendCellSize = 12.dp
+    val LabelGap = 6.dp
+    val SelectionStroke = 1.5.dp
 }
 
 private class HeatmapPalette(
     val levels: List<Color>,
     val selection: Color,
+    val emptyBorder: Color,
+    val legendBorder: Color,
 ) {
-    fun colorFor(value: Int, max: Int): Color {
-        if (value <= 0 || max <= 0) return levels.first()
+    fun levelFor(value: Int, max: Int): Int {
+        if (value <= 0 || max <= 0) return 0
         val steps = levels.lastIndex
-        val level = ceil(value.toFloat() / max * steps).toInt().coerceIn(1, steps)
-        return levels[level]
+        return ceil(value.toFloat() / max * steps).toInt().coerceIn(1, steps)
     }
 }
 
 @Composable
 private fun heatmapPalette(): HeatmapPalette {
     val colors = MaterialTheme.appColors
-    return remember(colors) { HeatmapPalette(levels = colors.heatRamp, selection = colors.ink) }
+    return remember(colors) {
+        HeatmapPalette(
+            levels = colors.heatRamp,
+            selection = colors.ink,
+            emptyBorder = colors.line,
+            legendBorder = colors.line2,
+        )
+    }
 }
 
 private class CellTooltipPosition(
@@ -317,6 +312,3 @@ private class CellTooltipPosition(
 }
 
 private const val DAYS_PER_WEEK = 7
-private const val MIN_LABEL_GAP = 3
-private const val CORNER_FRACTION = 0.2f
-private const val SELECTION_STROKE = 1.5f

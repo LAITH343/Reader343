@@ -22,6 +22,11 @@ import javax.inject.Inject
 
 enum class ChartMetric { Time, Pages }
 
+fun ChartMetric.toActivityMetric(): ActivityMetric = when (this) {
+    ChartMetric.Time -> ActivityMetric.Minutes
+    ChartMetric.Pages -> ActivityMetric.Pages
+}
+
 sealed interface StatsUiState {
     data object Loading : StatsUiState
     data object Empty : StatsUiState
@@ -62,11 +67,6 @@ class StatsViewModel @Inject constructor(
 
     fun onMetricSelected(value: ChartMetric) {
         metric.value = value
-    }
-
-    private fun ChartMetric.toActivityMetric() = when (this) {
-        ChartMetric.Time -> ActivityMetric.Minutes
-        ChartMetric.Pages -> ActivityMetric.Pages
     }
 
     fun retry() {

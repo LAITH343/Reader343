@@ -41,13 +41,12 @@
     <string name="note_view">عرض الملاحظة</string>
     <string name="note_delete">حذف</string>
     <string name="note_open_page">الانتقال إلى الصفحة %1$d</string>
-    <string name="stats_title">الإحصائيات</string>
+    <string name="stats_title">قراءتك</string>
     <string name="stats_empty">لا توجد قراءة بعد</string>
     <string name="stats_empty_hint">افتح كتابًا لتبدأ بتتبّع وقت قراءتك وسلسلة أيامك.</string>
     <string name="stats_load_failed">تعذّر تحميل إحصائياتك</string>
     <string name="stats_go_library">الذهاب إلى المكتبة</string>
     <string name="stats_open_book">فتح الكتاب</string>
-    <string name="stats_streak">السلسلة</string>
     <string name="stats_total_time">الوقت الكلي</string>
     <string name="stats_in_progress">قيد القراءة</string>
     <string name="stats_avg_session">متوسط الجلسة</string>
@@ -65,7 +64,7 @@
     <string name="stats_metric_pages">الصفحات</string>
     <string name="stats_chart_time">قراءة %1$s</string>
     <string name="stats_chart_day">%1$s: %2$s</string>
-    <string name="stats_books">الكتب</string>
+    <string name="stats_by_book">حسب الكتاب</string>
     <string name="stats_activity">النشاط</string>
     <string name="stats_activity_summary">%1$s · %2$s</string>
     <string name="stats_no_reading">لا قراءة</string>
@@ -103,6 +102,37 @@
         <item quantity="many">%1$s صفحة</item>
         <item quantity="other">%1$s صفحة</item>
     </plurals>
+    <plurals name="stats_last_weeks">
+        <item quantity="zero">آخر %1$s أسبوع</item>
+        <item quantity="one">الأسبوع الماضي</item>
+        <item quantity="two">آخر أسبوعين</item>
+        <item quantity="few">آخر %1$s أسابيع</item>
+        <item quantity="many">آخر %1$s أسبوعًا</item>
+        <item quantity="other">آخر %1$s أسبوع</item>
+    </plurals>
+    <plurals name="stats_streak_value">
+        <item quantity="zero">سلسلة %1$s يوم</item>
+        <item quantity="one">سلسلة يوم واحد</item>
+        <item quantity="two">سلسلة يومين</item>
+        <item quantity="few">سلسلة %1$s أيام</item>
+        <item quantity="many">سلسلة %1$s يومًا</item>
+        <item quantity="other">سلسلة %1$s يوم</item>
+    </plurals>
+    <string name="stats_best_streak">الأفضل: %1$s</string>
+    <string name="stats_streak_detail">%1$s · %2$s</string>
+    <string name="stats_read_today">قرأت اليوم</string>
+    <string name="stats_not_read_today">لم تقرأ اليوم بعد</string>
+    <string name="stats_goal_hit_rate">نسبة تحقيق الهدف</string>
+    <string name="stats_value_none">—</string>
+    <string name="stats_avg">المتوسط</string>
+    <string name="stats_trend_more">قرأت هذا الأسبوع أكثر بنسبة %1$s من الأسبوع الماضي.</string>
+    <string name="stats_trend_less">قرأت هذا الأسبوع أقل بنسبة %1$s من الأسبوع الماضي.</string>
+    <string name="stats_trend_same">قرأت هذا الأسبوع بقدر الأسبوع الماضي تقريبًا.</string>
+    <string name="stats_slot_morning">الصباح هو أفضل أوقات قراءتك.</string>
+    <string name="stats_slot_afternoon">بعد الظهر هو أفضل أوقات قراءتك.</string>
+    <string name="stats_slot_evening">المساء هو أفضل أوقات قراءتك.</string>
+    <string name="stats_slot_night">الليل هو أفضل أوقات قراءتك.</string>
+    <string name="stats_insight">%1$s %2$s</string>
     <string name="duration_hours_minutes">%1$d س %2$d د</string>
     <string name="duration_minutes">%1$d د</string>
     <string name="duration_seconds">%1$d ث</string>

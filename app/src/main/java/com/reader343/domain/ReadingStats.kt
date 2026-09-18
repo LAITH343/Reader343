@@ -4,11 +4,15 @@ import java.time.LocalDate
 
 data class ReadingStats(
     val streakDays: Int,
+    val bestStreakDays: Int,
+    val readToday: Boolean,
     val totalTimeMs: Long,
     val booksInProgress: Int,
     val sessionCount: Int,
     val avgSessionMs: Long,
     val pagesPerDay: Float,
+    val goalHitRate: Float?,
+    val strongestSlot: TimeSlot?,
     val days: List<DayStats>,
     val books: List<BookStats>,
 )

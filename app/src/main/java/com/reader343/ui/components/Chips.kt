@@ -189,6 +189,7 @@ fun SegmentedControl(
     selectedIndex: Int,
     onSelect: (Int) -> Unit,
     modifier: Modifier = Modifier,
+    containerColor: Color = MaterialTheme.appColors.bg,
 ) {
     val colors = MaterialTheme.appColors
     val shape = MaterialTheme.appShapes.control
@@ -196,7 +197,7 @@ fun SegmentedControl(
     val reduced = reducedMotion()
     Row(
         modifier = modifier
-            .background(colors.bg, shape)
+            .background(containerColor, shape)
             .border(1.dp, colors.line, shape)
             .padding(SegmentInset)
             .selectableGroup(),
