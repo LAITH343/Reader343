@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material3.AlertDialog
@@ -18,6 +19,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -56,6 +58,7 @@ import com.reader343.ui.components.DestructiveTextButton
 import com.reader343.ui.components.EmptyState
 import com.reader343.ui.components.ErrorState
 import com.reader343.ui.components.LoadingState
+import com.reader343.ui.components.SectionHeader
 import com.reader343.ui.components.TopBarAction
 import com.reader343.ui.theme.Reader343Theme
 import com.reader343.ui.theme.spacing
@@ -121,6 +124,9 @@ fun LibraryScreen(
                 title = stringResource(R.string.library_title),
                 scrollBehavior = scrollBehavior,
                 actions = {
+                    if ((state as? LibraryUiState.Content)?.continueBook != null) {
+                        ImportAction(importing = importing, onClick = onImport)
+                    }
                     TopBarAction(
                         icon = R.drawable.ic_bar_chart,
                         contentDescription = stringResource(R.string.action_stats),
@@ -131,7 +137,12 @@ fun LibraryScreen(
         },
         floatingActionButton = {
             if (state is LibraryUiState.Content) {
-                ImportFab(importing = importing, onClick = onImport)
+                val continueBook = state.continueBook
+                if (continueBook != null) {
+                    ContinueFab(onClick = { onOpenBook(continueBook.id) })
+                } else {
+                    ImportFab(importing = importing, onClick = onImport)
+                }
             }
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -154,9 +165,10 @@ fun LibraryScreen(
                     body = stringResource(R.string.library_empty_hint),
                     action = { ImportButton(importing = importing, onClick = onImport) },
                 )
-                is LibraryUiState.Content -> BookGrid(
-                    books = state.books,
+                is LibraryUiState.Content -> HomeContent(
+                    state = state,
                     onOpenBook = onOpenBook,
+                    onOpenStats = onOpenStats,
                     onRemoveBook = { pendingDeleteId = it },
                 )
             }
@@ -173,6 +185,29 @@ fun LibraryScreen(
             },
             onDismiss = { pendingDeleteId = null },
         )
+    }
+}
+
+@Composable
+private fun ContinueFab(onClick: () -> Unit) {
+    ExtendedFloatingActionButton(
+        onClick = onClick,
+        icon = { Icon(painterResource(R.drawable.ic_play), contentDescription = null) },
+        text = { Text(stringResource(R.string.home_continue)) },
+    )
+}
+
+@Composable
+private fun ImportAction(importing: Boolean, onClick: () -> Unit) {
+    IconButton(onClick = onClick, enabled = !importing) {
+        if (importing) {
+            ImportIcon(importing = true, description = stringResource(R.string.library_importing))
+        } else {
+            Icon(
+                painter = painterResource(R.drawable.ic_add),
+                contentDescription = stringResource(R.string.library_import),
+            )
+        }
     }
 }
 
@@ -223,9 +258,10 @@ private fun ImportIcon(importing: Boolean, description: String, size: Dp = FabIc
 }
 
 @Composable
-private fun BookGrid(
-    books: List<BookWithProgress>,
+private fun HomeContent(
+    state: LibraryUiState.Content,
     onOpenBook: (Long) -> Unit,
+    onOpenStats: () -> Unit,
     onRemoveBook: (Long) -> Unit,
 ) {
     val spacing = MaterialTheme.spacing
@@ -241,7 +277,19 @@ private fun BookGrid(
         verticalArrangement = Arrangement.spacedBy(spacing.md),
         modifier = Modifier.fillMaxSize(),
     ) {
-        items(books, key = { it.id }) { book ->
+        state.stats?.let { stats ->
+            item(key = StatsKey, span = { GridItemSpan(maxLineSpan) }) {
+                HomeStatsStrip(
+                    stats = stats,
+                    onOpenStats = onOpenStats,
+                    modifier = Modifier.animateItem(),
+                )
+            }
+        }
+        item(key = BooksHeaderKey, span = { GridItemSpan(maxLineSpan) }) {
+            SectionHeader(text = stringResource(R.string.home_all_books))
+        }
+        items(state.books, key = { it.id }) { book ->
             BookCard(
                 book = book,
                 onOpen = { onOpenBook(book.id) },
@@ -272,6 +320,8 @@ private fun DeleteBookDialog(
     )
 }
 
+private const val StatsKey = "stats"
+private const val BooksHeaderKey = "books_header"
 private val BookMinWidth = 150.dp
 private val FabIconSize = 24.dp
 
@@ -286,7 +336,11 @@ private val PreviewBooks = listOf(
 private fun LibraryContentPreview() {
     Reader343Theme {
         LibraryScreen(
-            state = LibraryUiState.Content(PreviewBooks),
+            state = LibraryUiState.Content(
+                books = PreviewBooks,
+                continueBook = PreviewBooks.first(),
+                stats = HomeStats(streakDays = 4, todayMs = 1_380_000, dailyGoalMs = 1_800_000, booksInProgress = 1),
+            ),
             importing = false,
             snackbarHostState = remember { SnackbarHostState() },
             onImport = {},

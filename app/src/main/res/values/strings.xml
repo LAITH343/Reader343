@@ -15,6 +15,11 @@
         <item quantity="other">%1$s pages</item>
     </plurals>
     <string name="library_cover_description">Cover of %1$s</string>
+    <string name="home_continue">Continue</string>
+    <string name="home_today">Today</string>
+    <string name="home_today_goal">%1$s of %2$s</string>
+    <string name="home_open_stats">Open stats</string>
+    <string name="home_all_books">All books</string>
     <string name="delete_book_title">Remove book?</string>
     <string name="delete_book_message">\"%1$s\" and its reading data will be removed from this device.</string>
     <string name="action_delete">Remove</string>

@@ -56,6 +56,18 @@ fun formatDuration(ms: Long): String {
 
 @Composable
 @ReadOnlyComposable
+fun formatMinutes(ms: Long): String {
+    val minutes = ms / 60_000L
+    val hours = minutes / 60L
+    return if (hours > 0L) {
+        stringResource(R.string.duration_hours_minutes, hours, minutes % 60L)
+    } else {
+        stringResource(R.string.duration_minutes, minutes)
+    }
+}
+
+@Composable
+@ReadOnlyComposable
 fun formatRelative(time: Long, now: Long = System.currentTimeMillis()): String {
     val locale = currentLocale()
     val formatter = RelativeDateTimeFormatter.getInstance(ULocale.forLocale(locale))
