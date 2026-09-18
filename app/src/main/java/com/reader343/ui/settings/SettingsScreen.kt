@@ -15,11 +15,15 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
@@ -33,12 +37,15 @@ import androidx.compose.material3.rememberTopAppBarState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -63,6 +70,7 @@ import com.reader343.ui.components.formatMinutes
 import com.reader343.ui.components.formatNumber
 import com.reader343.ui.theme.Reader343Theme
 import com.reader343.ui.theme.spacing
+import kotlinx.coroutines.launch
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 import java.time.format.DecimalStyle
@@ -73,6 +81,23 @@ fun SettingsRoute(
     viewModel: SettingsViewModel = hiltViewModel(),
 ) {
     val settings by viewModel.settings.collectAsStateWithLifecycle()
+    val access = rememberNotificationAccess()
+    val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+    var askPermission by rememberSaveable { mutableStateOf(false) }
+
+    val showDenied: () -> Unit = {
+        scope.launch {
+            val result = snackbarHostState.showSnackbar(
+                message = context.getString(R.string.notifications_denied),
+                actionLabel = context.getString(R.string.action_open_settings),
+                withDismissAction = true,
+            )
+            if (result == SnackbarResult.ActionPerformed) access.openSystemSettings()
+        }
+    }
+
     SettingsScreen(
         settings = settings,
         actions = SettingsActions(
@@ -80,11 +105,54 @@ fun SettingsRoute(
             onPageAppearance = viewModel::setPageAppearance,
             onLanguage = viewModel::setLanguage,
             onGoal = viewModel::setGoal,
-            onRemindersEnabled = viewModel::setRemindersEnabled,
+            onRemindersEnabled = { enabled ->
+                if (enabled && access.needsPrompt) askPermission = true else viewModel.setRemindersEnabled(enabled)
+            },
             onReminderTime = viewModel::setReminderTime,
             onStreakReminder = viewModel::setStreakReminder,
+            onStreakTime = viewModel::setStreakTime,
         ),
         onBack = onBack,
+        snackbarHostState = snackbarHostState,
+        notificationsBlocked = !access.allowed,
+        onFixNotifications = {
+            if (access.needsPrompt) {
+                access.request { if (it == PermissionResult.Blocked) access.openSystemSettings() }
+            } else {
+                access.openSystemSettings()
+            }
+        },
+    )
+
+    if (askPermission) {
+        NotificationRationaleDialog(
+            onConfirm = {
+                askPermission = false
+                access.request { result ->
+                    if (result == PermissionResult.Granted) viewModel.setRemindersEnabled(true) else showDenied()
+                }
+            },
+            onDismiss = { askPermission = false },
+        )
+    }
+}
+
+@Composable
+private fun NotificationRationaleDialog(
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        icon = { Icon(painterResource(R.drawable.ic_library), contentDescription = null) },
+        title = { Text(stringResource(R.string.notifications_rationale_title)) },
+        text = { Text(stringResource(R.string.notifications_rationale)) },
+        confirmButton = {
+            TextButton(onClick = onConfirm) { Text(stringResource(R.string.action_allow)) }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_not_now)) }
+        },
     )
 }
 
@@ -96,9 +164,10 @@ class SettingsActions(
     val onRemindersEnabled: (Boolean) -> Unit,
     val onReminderTime: (LocalTime) -> Unit,
     val onStreakReminder: (Boolean) -> Unit,
+    val onStreakTime: (LocalTime) -> Unit,
 )
 
-private enum class SettingsDialog { Goal, ReminderTime }
+private enum class SettingsDialog { Goal, ReminderTime, StreakTime }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -107,6 +176,9 @@ fun SettingsScreen(
     actions: SettingsActions,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
+    snackbarHostState: SnackbarHostState = remember { SnackbarHostState() },
+    notificationsBlocked: Boolean = false,
+    onFixNotifications: () -> Unit = {},
 ) {
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior(rememberTopAppBarState())
     var dialog by rememberSaveable { mutableStateOf<SettingsDialog?>(null) }
@@ -120,6 +192,7 @@ fun SettingsScreen(
                 scrollBehavior = scrollBehavior,
             )
         },
+        snackbarHost = { SnackbarHost(snackbarHostState) },
     ) { padding ->
         if (settings == null) {
             LoadingState(modifier = Modifier.padding(padding))
@@ -129,6 +202,9 @@ fun SettingsScreen(
                 actions = actions,
                 onEditGoal = { dialog = SettingsDialog.Goal },
                 onEditReminderTime = { dialog = SettingsDialog.ReminderTime },
+                onEditStreakTime = { dialog = SettingsDialog.StreakTime },
+                notificationsBlocked = notificationsBlocked,
+                onFixNotifications = onFixNotifications,
                 contentPadding = padding,
             )
         }
@@ -145,9 +221,19 @@ fun SettingsScreen(
                 onDismiss = { dialog = null },
             )
             SettingsDialog.ReminderTime -> ReminderTimeDialog(
+                title = stringResource(R.string.settings_reminder_time),
                 time = settings.reminders.readingTime,
                 onConfirm = {
                     actions.onReminderTime(it)
+                    dialog = null
+                },
+                onDismiss = { dialog = null },
+            )
+            SettingsDialog.StreakTime -> ReminderTimeDialog(
+                title = stringResource(R.string.settings_streak_time),
+                time = settings.reminders.streakTime,
+                onConfirm = {
+                    actions.onStreakTime(it)
                     dialog = null
                 },
                 onDismiss = { dialog = null },
@@ -163,6 +249,9 @@ private fun SettingsContent(
     actions: SettingsActions,
     onEditGoal: () -> Unit,
     onEditReminderTime: () -> Unit,
+    onEditStreakTime: () -> Unit,
+    notificationsBlocked: Boolean,
+    onFixNotifications: () -> Unit,
     contentPadding: PaddingValues,
 ) {
     val spacing = MaterialTheme.spacing
@@ -221,6 +310,14 @@ private fun SettingsContent(
                     checked = reminders.enabled,
                     onCheckedChange = actions.onRemindersEnabled,
                 )
+                if (reminders.enabled && notificationsBlocked) {
+                    GroupDivider()
+                    WarningRow(
+                        title = stringResource(R.string.notifications_blocked),
+                        summary = stringResource(R.string.notifications_blocked_hint),
+                        onClick = onFixNotifications,
+                    )
+                }
                 GroupDivider()
                 ValueRow(
                     title = stringResource(R.string.settings_reminder_time),
@@ -235,6 +332,13 @@ private fun SettingsContent(
                     checked = reminders.streakEnabled,
                     enabled = reminders.enabled,
                     onCheckedChange = actions.onStreakReminder,
+                )
+                GroupDivider()
+                ValueRow(
+                    title = stringResource(R.string.settings_streak_time),
+                    value = formatTime(reminders.streakTime),
+                    enabled = reminders.enabled && reminders.streakEnabled,
+                    onClick = onEditStreakTime,
                 )
             }
         }
@@ -336,6 +440,30 @@ private fun SwitchRow(
 }
 
 @Composable
+private fun WarningRow(
+    title: String,
+    summary: String,
+    onClick: () -> Unit,
+) {
+    ListItem(
+        headlineContent = { Text(title) },
+        supportingContent = { Text(summary) },
+        leadingContent = {
+            Icon(
+                painter = painterResource(R.drawable.ic_error),
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.error,
+            )
+        },
+        modifier = Modifier.clickable(role = Role.Button, onClick = onClick),
+        colors = ListItemDefaults.colors(
+            containerColor = Color.Transparent,
+            headlineColor = MaterialTheme.colorScheme.error,
+        ),
+    )
+}
+
+@Composable
 private fun rowColors(enabled: Boolean) = ListItemDefaults.colors(
     containerColor = Color.Transparent,
     headlineColor = if (enabled) {
@@ -408,6 +536,7 @@ private fun GoalDialog(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ReminderTimeDialog(
+    title: String,
     time: LocalTime,
     onConfirm: (LocalTime) -> Unit,
     onDismiss: () -> Unit,
@@ -419,7 +548,7 @@ private fun ReminderTimeDialog(
     )
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.settings_reminder_time)) },
+        title = { Text(title) },
         text = { TimePicker(state = state) },
         confirmButton = {
             TextButton(onClick = { onConfirm(LocalTime.of(state.hour, state.minute)) }) {
@@ -493,7 +622,7 @@ private fun SettingsPreview() {
     Reader343Theme {
         SettingsScreen(
             settings = AppSettings(goal = DailyGoal(GoalUnit.Minutes, 30)),
-            actions = SettingsActions({}, {}, {}, {}, {}, {}, {}),
+            actions = SettingsActions({}, {}, {}, {}, {}, {}, {}, {}),
             onBack = {},
         )
     }

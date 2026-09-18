@@ -53,6 +53,10 @@ class SettingsRepository @Inject constructor(
 
     suspend fun setStreakReminder(value: Boolean) = edit { it[Keys.STREAK_REMINDER] = value }
 
+    suspend fun setStreakTime(value: LocalTime) = edit {
+        it[Keys.STREAK_TIME] = value.hour * MINUTES_PER_HOUR + value.minute
+    }
+
     private suspend fun edit(block: (MutablePreferences) -> Unit) {
         dataStore.edit(block)
     }
@@ -71,6 +75,7 @@ class SettingsRepository @Inject constructor(
                 enabled = this[Keys.REMINDERS_ENABLED] ?: defaults.reminders.enabled,
                 readingTime = this[Keys.REMINDER_TIME]?.let(::timeOf) ?: defaults.reminders.readingTime,
                 streakEnabled = this[Keys.STREAK_REMINDER] ?: defaults.reminders.streakEnabled,
+                streakTime = this[Keys.STREAK_TIME]?.let(::timeOf) ?: defaults.reminders.streakTime,
             ),
         )
     }
@@ -92,6 +97,7 @@ class SettingsRepository @Inject constructor(
         val REMINDERS_ENABLED = booleanPreferencesKey("reminders_enabled")
         val REMINDER_TIME = intPreferencesKey("reminder_time")
         val STREAK_REMINDER = booleanPreferencesKey("streak_reminder")
+        val STREAK_TIME = intPreferencesKey("streak_time")
     }
 
     private companion object {

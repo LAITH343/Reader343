@@ -90,4 +90,7 @@ interface SessionDao {
 
     @Query("SELECT * FROM sessions WHERE endTs IS NOT NULL ORDER BY startTs")
     fun observeFinished(): Flow<List<SessionEntity>>
+
+    @Query("SELECT startTs FROM sessions WHERE endTs IS NOT NULL")
+    suspend fun finishedStartTimes(): List<Long>
 }

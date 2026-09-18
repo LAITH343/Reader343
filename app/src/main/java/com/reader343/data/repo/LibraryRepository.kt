@@ -12,11 +12,13 @@ import com.reader343.data.db.entity.BookEntity
 import com.reader343.data.db.entity.BookWithProgressRow
 import com.reader343.data.db.entity.ProgressEntity
 import com.reader343.domain.BookWithProgress
+import com.reader343.domain.continueCandidate
 import com.reader343.pdf.PdfImportReader
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -38,6 +40,8 @@ class LibraryRepository @Inject constructor(
 
     fun observeBooks(): Flow<List<BookWithProgress>> =
         bookDao.observeWithProgress().map { rows -> rows.map { it.toDomain() } }
+
+    suspend fun continueBook(): BookWithProgress? = observeBooks().first().continueCandidate()
 
     suspend fun importPdf(uri: Uri): Result<Long> = withContext(Dispatchers.IO) {
         val id = UUID.randomUUID().toString()

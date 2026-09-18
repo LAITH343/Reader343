@@ -29,4 +29,9 @@ data class BookStats(
     val percent: Float,
 )
 
+data class StreakSnapshot(
+    val days: Int,
+    val readToday: Boolean,
+)
+
 enum class ActivityMetric { Minutes, Pages }

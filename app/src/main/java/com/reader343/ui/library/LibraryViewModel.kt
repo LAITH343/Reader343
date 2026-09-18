@@ -9,6 +9,7 @@ import com.reader343.data.repo.StatsRepository
 import com.reader343.domain.AppSettings
 import com.reader343.domain.BookWithProgress
 import com.reader343.domain.DailyGoal
+import com.reader343.domain.continueCandidate
 import com.reader343.domain.ReadingStats
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -68,7 +69,7 @@ class LibraryViewModel @Inject constructor(
                 if (books.isEmpty()) {
                     LibraryUiState.Empty
                 } else {
-                    LibraryUiState.Content(books, continueBook(books), stats)
+                    LibraryUiState.Content(books, books.continueCandidate(), stats)
                 }
             }
                 .onStart { if (attempt > 0) emit(LibraryUiState.Loading) }
@@ -102,11 +103,6 @@ class LibraryViewModel @Inject constructor(
         ) { stats, settings ->
             stats.toHomeStats(LocalDate.now(), settings.goal)
         }.catch { emit(null) }
-
-    private fun continueBook(books: List<BookWithProgress>): BookWithProgress? =
-        books
-            .filter { it.lastReadAt != null && it.percent < 1f }
-            .maxByOrNull { it.lastReadAt ?: 0L }
 
     private fun ReadingStats.toHomeStats(today: LocalDate, goal: DailyGoal): HomeStats {
         val day = days.lastOrNull { it.date == today }

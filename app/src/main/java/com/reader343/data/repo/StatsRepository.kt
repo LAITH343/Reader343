@@ -8,11 +8,13 @@ import com.reader343.domain.ActivityMetric
 import com.reader343.domain.BookStats
 import com.reader343.domain.DayStats
 import com.reader343.domain.ReadingStats
+import com.reader343.domain.StreakSnapshot
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.withContext
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -34,6 +36,13 @@ class StatsRepository @Inject constructor(
         sessionDao.observeFinished()
             .map { sessions -> dailyActivity(sessions, metric, ZoneId.systemDefault()) }
             .flowOn(Dispatchers.Default)
+
+    suspend fun streakSnapshot(): StreakSnapshot = withContext(Dispatchers.Default) {
+        val zone = ZoneId.systemDefault()
+        val today = LocalDate.now(zone)
+        val activeDays = sessionDao.finishedStartTimes().mapTo(HashSet()) { it.toLocalDate(zone) }
+        StreakSnapshot(days = streak(activeDays, today), readToday = today in activeDays)
+    }
 
     private fun dailyActivity(
         sessions: List<SessionEntity>,

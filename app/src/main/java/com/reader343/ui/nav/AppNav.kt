@@ -1,6 +1,7 @@
 package com.reader343.ui.nav
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.lifecycle.Lifecycle
 import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavController
@@ -15,6 +16,8 @@ import com.reader343.ui.library.LibraryRoute
 import com.reader343.ui.reader.ReaderRoute
 import com.reader343.ui.settings.SettingsRoute
 import com.reader343.ui.stats.StatsRoute
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emptyFlow
 
 object Routes {
     const val LIBRARY = "library"
@@ -27,7 +30,7 @@ object Routes {
 }
 
 @Composable
-fun AppNav() {
+fun AppNav(continueRequests: Flow<Long?> = emptyFlow()) {
     val navController = rememberNavController()
     val reduced = reducedMotion()
     NavHost(
@@ -59,6 +62,15 @@ fun AppNav() {
         }
         composable(Routes.SETTINGS) { entry ->
             SettingsRoute(onBack = { navController.popFrom(entry) })
+        }
+    }
+    LaunchedEffect(navController, continueRequests) {
+        continueRequests.collect { bookId ->
+            if (bookId == null) {
+                navController.popBackStack(Routes.LIBRARY, inclusive = false)
+            } else {
+                navController.navigate(Routes.reader(bookId)) { popUpTo(Routes.LIBRARY) }
+            }
         }
     }
 }

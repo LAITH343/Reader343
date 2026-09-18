@@ -25,6 +25,7 @@ data class ReminderSettings(
     val enabled: Boolean = false,
     val readingTime: LocalTime = LocalTime.of(20, 0),
     val streakEnabled: Boolean = true,
+    val streakTime: LocalTime = LocalTime.of(19, 0),
 )
 
 data class AppSettings(

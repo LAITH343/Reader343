@@ -1,5 +1,6 @@
 package com.reader343
 
+import android.content.Intent
 import android.graphics.Color
 import android.os.Bundle
 import androidx.activity.SystemBarStyle
@@ -11,6 +12,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
+import com.reader343.data.repo.LibraryRepository
 import com.reader343.data.repo.SettingsRepository
 import com.reader343.domain.AppSettings
 import com.reader343.domain.ThemeMode
@@ -18,7 +20,9 @@ import com.reader343.ui.nav.AppNav
 import com.reader343.ui.settings.AppLocales
 import com.reader343.ui.theme.Reader343Theme
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -28,10 +32,17 @@ class MainActivity : AppCompatActivity() {
     @Inject
     lateinit var settingsRepository: SettingsRepository
 
+    @Inject
+    lateinit var libraryRepository: LibraryRepository
+
+    private val continueRequests = Channel<Long?>(Channel.CONFLATED)
+    private val continueFlow = continueRequests.receiveAsFlow()
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         lifecycleScope.launch { AppLocales.apply(settingsRepository.settings.first().language) }
+        if (savedInstanceState == null) handleIntent(intent)
         setContent {
             val settings by settingsRepository.settings.collectAsStateWithLifecycle(initialValue = null)
             val systemDark = isSystemInDarkTheme()
@@ -45,10 +56,20 @@ class MainActivity : AppCompatActivity() {
                     onDispose {}
                 }
                 Reader343Theme(darkTheme = darkTheme) {
-                    AppNav()
+                    AppNav(continueRequests = continueFlow)
                 }
             }
         }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        handleIntent(intent)
+    }
+
+    private fun handleIntent(intent: Intent?) {
+        if (intent?.action != ACTION_CONTINUE_READING) return
+        lifecycleScope.launch { continueRequests.send(libraryRepository.continueBook()?.id) }
     }
 
     private fun AppSettings.isDark(system: Boolean): Boolean = when (theme) {
@@ -57,8 +78,9 @@ class MainActivity : AppCompatActivity() {
         ThemeMode.Dark -> true
     }
 
-    private companion object {
-        val LightScrim = Color.argb(0xE6, 0xFF, 0xFF, 0xFF)
-        val DarkScrim = Color.argb(0x80, 0x1B, 0x1B, 0x1B)
+    companion object {
+        const val ACTION_CONTINUE_READING = "com.reader343.action.CONTINUE_READING"
+        private val LightScrim = Color.argb(0xE6, 0xFF, 0xFF, 0xFF)
+        private val DarkScrim = Color.argb(0x80, 0x1B, 0x1B, 0x1B)
     }
 }

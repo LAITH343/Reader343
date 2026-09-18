@@ -41,6 +41,8 @@ class SettingsViewModel @Inject constructor(
 
     fun setStreakReminder(value: Boolean) = update { repository.setStreakReminder(value) }
 
+    fun setStreakTime(value: LocalTime) = update { repository.setStreakTime(value) }
+
     private fun update(block: suspend () -> Unit) {
         viewModelScope.launch { block() }
     }

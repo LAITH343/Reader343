@@ -9,3 +9,7 @@ data class BookWithProgress(
     val percent: Float,
     val lastReadAt: Long?,
 )
+
+fun List<BookWithProgress>.continueCandidate(): BookWithProgress? =
+    filter { it.lastReadAt != null && it.percent < 1f }
+        .maxByOrNull { it.lastReadAt ?: 0L }

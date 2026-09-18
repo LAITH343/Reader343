@@ -124,7 +124,26 @@
     <string name="settings_reminders_enabled_hint">Get a daily nudge to read</string>
     <string name="settings_reminder_time">Reading reminder</string>
     <string name="settings_streak_reminder">Streak reminder</string>
+    <string name="settings_streak_time">Streak reminder time</string>
     <string name="settings_streak_reminder_hint">Evening alert if you haven\'t read today</string>
     <string name="settings_about">About</string>
     <string name="settings_version">Version %1$s</string>
+    <string name="reminder_channel_name">Reading reminders</string>
+    <string name="reminder_channel_description">Daily reading and streak reminders</string>
+    <string name="reminder_reading_title">Time to read</string>
+    <string name="reminder_reading_body_book">Pick up %1$s where you left off.</string>
+    <string name="reminder_reading_body">Open a book and read a few pages.</string>
+    <plurals name="reminder_streak_title">
+        <item quantity="one">Keep your %1$s-day streak alive</item>
+        <item quantity="other">Keep your %1$s-day streak alive</item>
+    </plurals>
+    <string name="reminder_streak_body">You haven\'t read today yet. A few pages will do.</string>
+    <string name="notifications_rationale_title">Allow notifications?</string>
+    <string name="notifications_rationale">Reader343 uses notifications only to deliver the reading and streak reminders you set here.</string>
+    <string name="notifications_denied">Reminders need notification access</string>
+    <string name="notifications_blocked">Notifications are off</string>
+    <string name="notifications_blocked_hint">Tap to allow notifications so reminders can reach you</string>
+    <string name="action_allow">Allow</string>
+    <string name="action_not_now">Not now</string>
+    <string name="action_open_settings">Open settings</string>
 </resources>
