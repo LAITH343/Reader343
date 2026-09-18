@@ -4,8 +4,10 @@ import android.content.Context
 import androidx.room.Room
 import com.reader343.data.db.ReaderDatabase
 import com.reader343.data.db.dao.BookDao
+import com.reader343.data.db.dao.BookmarkDao
 import com.reader343.data.db.dao.HighlightDao
 import com.reader343.data.db.dao.NoteDao
+import com.reader343.data.db.dao.OutlineDao
 import com.reader343.data.db.dao.ProgressDao
 import com.reader343.data.db.dao.SessionDao
 import dagger.Module
@@ -38,4 +40,10 @@ object DatabaseModule {
 
     @Provides
     fun provideSessionDao(db: ReaderDatabase): SessionDao = db.sessionDao()
+
+    @Provides
+    fun provideBookmarkDao(db: ReaderDatabase): BookmarkDao = db.bookmarkDao()
+
+    @Provides
+    fun provideOutlineDao(db: ReaderDatabase): OutlineDao = db.outlineDao()
 }

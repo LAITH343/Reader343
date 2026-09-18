@@ -6,6 +6,7 @@ import android.graphics.RectF
 import android.os.ParcelFileDescriptor
 import com.reader343.di.PdfDispatcher
 import com.reader343.domain.NormRect
+import com.reader343.domain.OutlineEntry
 import io.legere.pdfiumandroid.PdfDocument
 import io.legere.pdfiumandroid.PdfiumCore
 import kotlinx.coroutines.CoroutineDispatcher
@@ -67,6 +68,11 @@ class PdfEngine @Inject constructor(
             }
             bitmap
         }
+
+    suspend fun outline(): List<OutlineEntry> = withContext(dispatcher) {
+        val doc = checkNotNull(document) { "Document not open" }
+        runCatching { doc.getTableOfContents().flatten(pageSizes.size) }.getOrDefault(emptyList())
+    }
 
     suspend fun loadText(index: Int): PageText = withContext(dispatcher) {
         val doc = checkNotNull(document) { "Document not open" }

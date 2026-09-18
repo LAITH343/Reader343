@@ -6,9 +6,12 @@ import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Transaction
 import com.reader343.data.db.entity.BookEntity
+import com.reader343.data.db.entity.BookmarkEntity
 import com.reader343.data.db.entity.BookWithProgressRow
 import com.reader343.data.db.entity.HighlightEntity
 import com.reader343.data.db.entity.NoteEntity
+import com.reader343.data.db.entity.OutlineEntryEntity
+import com.reader343.data.db.entity.PaceRow
 import com.reader343.data.db.entity.ProgressEntity
 import com.reader343.data.db.entity.SessionEntity
 import kotlinx.coroutines.flow.Flow
@@ -20,7 +23,25 @@ interface BookDao {
         """
         SELECT books.*,
             (SELECT COUNT(*) FROM highlights WHERE highlights.bookId = books.id) AS highlightCount,
-            (SELECT COUNT(*) FROM notes WHERE notes.bookId = books.id) AS noteCount
+            (SELECT COUNT(*) FROM notes WHERE notes.bookId = books.id) AS noteCount,
+            (SELECT COUNT(*) FROM bookmarks WHERE bookmarks.bookId = books.id) AS bookmarkCount,
+            (
+                SELECT outline.title FROM outline
+                WHERE outline.bookId = books.id AND outline.page <= COALESCE(progress.lastPage, 0)
+                ORDER BY outline.page DESC, outline.position DESC LIMIT 1
+            ) AS chapterTitle,
+            (
+                SELECT MIN(outline.page) FROM outline
+                WHERE outline.bookId = books.id AND outline.page > COALESCE(progress.lastPage, 0)
+            ) AS chapterEndPage,
+            (
+                SELECT COALESCE(SUM(sessions.endTs - sessions.startTs), 0) FROM sessions
+                WHERE sessions.bookId = books.id AND sessions.endTs IS NOT NULL
+            ) AS readMs,
+            (
+                SELECT COALESCE(SUM(sessions.pagesRead), 0) FROM sessions
+                WHERE sessions.bookId = books.id AND sessions.endTs IS NOT NULL
+            ) AS readPages
         FROM books
         LEFT JOIN progress ON progress.bookId = books.id
         ORDER BY MAX(COALESCE(progress.updatedAt, 0), books.addedAt) DESC
@@ -102,4 +123,38 @@ interface SessionDao {
 
     @Query("SELECT startTs FROM sessions WHERE endTs IS NOT NULL")
     suspend fun finishedStartTimes(): List<Long>
+
+    @Query(
+        """
+        SELECT COALESCE(SUM(endTs - startTs), 0) AS timeMs, COALESCE(SUM(pagesRead), 0) AS pages
+        FROM sessions WHERE endTs IS NOT NULL AND bookId = :bookId
+        """,
+    )
+    suspend fun paceForBook(bookId: Long): PaceRow
+
+    @Query(
+        """
+        SELECT COALESCE(SUM(endTs - startTs), 0) AS timeMs, COALESCE(SUM(pagesRead), 0) AS pages
+        FROM sessions WHERE endTs IS NOT NULL
+        """,
+    )
+    suspend fun paceOverall(): PaceRow
+}
+
+@Dao
+interface BookmarkDao {
+    @Query("SELECT * FROM bookmarks WHERE bookId = :bookId ORDER BY page")
+    fun observeByBook(bookId: Long): Flow<List<BookmarkEntity>>
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insert(bookmark: BookmarkEntity): Long
+
+    @Query("DELETE FROM bookmarks WHERE bookId = :bookId AND page = :page")
+    suspend fun delete(bookId: Long, page: Int): Int
+}
+
+@Dao
+interface OutlineDao {
+    @Insert
+    suspend fun insertAll(entries: List<OutlineEntryEntity>)
 }

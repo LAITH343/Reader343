@@ -176,6 +176,15 @@ private fun BookMenuContent(
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                 )
+                book.chapterTitle?.let { chapter ->
+                    Text(
+                        text = chapter,
+                        style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
+                        color = colors.ink2,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
                 Text(
                     text = stringResource(
                         R.string.book_menu_meta,

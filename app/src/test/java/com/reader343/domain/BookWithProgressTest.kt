@@ -51,4 +51,18 @@ class BookWithProgressTest {
         assertEquals(almostDone, books.continueCandidate())
         assertNull(listOf(notStarted, finished).continueCandidate())
     }
+
+    @Test
+    fun marksIncludeBookmarks() {
+        assertEquals(6, book(9, notes = 2).copy(highlightCount = 3, bookmarkCount = 1).marks)
+    }
+
+    @Test
+    fun chapterTimeLeftUsesPaceAndChapterEnd() {
+        val base = book(10, percent = 0.2f, lastReadAt = 1L)
+        assertNull(base.chapterTimeLeftMs)
+        assertNull(base.copy(chapterTitle = "One", chapterEndPage = 30).chapterTimeLeftMs)
+        assertEquals(600_000L, base.copy(chapterTitle = "One", chapterEndPage = 30, msPerPage = 60_000L).chapterTimeLeftMs)
+        assertEquals(4_800_000L, base.copy(chapterTitle = "Last", msPerPage = 60_000L).chapterTimeLeftMs)
+    }
 }

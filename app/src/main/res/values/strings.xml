@@ -19,7 +19,6 @@
     <string name="reader_open_failed">Couldn\'t open this book</string>
     <string name="reader_page_indicator">Page %1$s of %2$s</string>
     <string name="reader_page_loading">Loading page %1$d</string>
-    <string name="highlight_confirm">Save highlight</string>
     <string name="highlight_delete">Delete highlight</string>
     <string name="highlight_color_yellow">Yellow</string>
     <string name="highlight_color_green">Green</string>
@@ -263,4 +262,30 @@
     <string name="reset_progress_title">Reset progress?</string>
     <string name="reset_progress_message">\"%1$s\" will start again from page 1. Notes, highlights and reading history stay.</string>
     <string name="action_reset">Reset</string>
+    <string name="reader_subtitle_chapter">%1$s · page %2$s</string>
+    <string name="reader_subtitle_page">Page %1$s</string>
+    <string name="reader_session">%1$s this session · %2$s</string>
+    <plurals name="reader_session_pages">
+        <item quantity="one">%1$s page</item>
+        <item quantity="other">%1$s pages</item>
+    </plurals>
+    <string name="reader_page_fraction">%1$s / %2$s</string>
+    <string name="reader_time_left">%1$s left</string>
+    <string name="reader_page_slider">Page</string>
+    <string name="reader_zoom">Magnifier</string>
+    <string name="reader_tool_highlight">Highlight</string>
+    <string name="reader_tool_note">Note</string>
+    <string name="reader_tool_bookmark">Bookmark</string>
+    <string name="reader_tool_contents">Contents</string>
+    <string name="selection_dismiss">Dismiss</string>
+    <string name="selection_area">Selected area</string>
+    <string name="selection_quote">“%1$s”</string>
+    <string name="highlight_with_color">Highlight in %1$s</string>
+    <string name="contents_title">Contents</string>
+    <string name="contents_current">Current chapter</string>
+    <string name="bookmarks_title">Bookmarks</string>
+    <string name="bookmarks_empty">No bookmarks yet</string>
+    <string name="bookmarks_empty_hint">Tap Bookmark in the toolbar to keep your place on a page.</string>
+    <string name="bookmark_remove">Remove bookmark on page %1$s</string>
+    <string name="home_page_progress_chapter">Page %1$s of %2$s · %3$s · %4$s left in this chapter</string>
 </resources>

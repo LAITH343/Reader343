@@ -46,12 +46,14 @@ fun PrimaryButton(
     @DrawableRes icon: Int? = null,
     enabled: Boolean = true,
     compact: Boolean = false,
+    contentPadding: PaddingValues = PaddingValues(horizontal = 16.dp),
 ) {
     val colors = MaterialTheme.appColors
     ButtonFrame(
         onClick = onClick,
         modifier = modifier,
         enabled = enabled,
+        contentPadding = contentPadding,
         container = if (compact) colors.accTint12 else colors.accLtTint12,
         border = BorderStroke(1.dp, if (compact) colors.acc else colors.accLt),
         contentColor = colors.ink,
@@ -145,6 +147,7 @@ fun IconBadgeButton(
     modifier: Modifier = Modifier,
     tone: IconButtonTone = IconButtonTone.Neutral,
     badge: Boolean = false,
+    badgePulse: Boolean = true,
     enabled: Boolean = true,
 ) {
     val colors = MaterialTheme.appColors
@@ -172,6 +175,7 @@ fun IconBadgeButton(
         )
         if (badge) {
             BadgeDot(
+                pulse = badgePulse,
                 modifier = Modifier
                     .align(Alignment.TopEnd)
                     .padding(top = 7.dp, end = 7.dp),

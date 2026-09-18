@@ -19,17 +19,23 @@ import androidx.compose.ui.unit.IntSize
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.reader343.data.repo.BookmarkRepository
 import com.reader343.data.repo.HighlightRepository
 import com.reader343.data.repo.NoteRepository
 import com.reader343.data.repo.ReaderRepository
 import com.reader343.data.repo.SessionRepository
 import com.reader343.data.repo.SettingsRepository
 import com.reader343.di.ApplicationScope
+import com.reader343.domain.Bookmark
+import com.reader343.domain.Chapter
 import com.reader343.domain.Highlight
 import com.reader343.domain.NewHighlight
 import com.reader343.domain.NormRect
 import com.reader343.domain.Note
 import com.reader343.domain.NoteAnchor
+import com.reader343.domain.OutlineEntry
+import com.reader343.domain.ReadingPace
+import com.reader343.domain.chapterAt
 import com.reader343.domain.PageAppearance
 import com.reader343.pdf.PageBitmapCache
 import com.reader343.pdf.PageSize
@@ -72,11 +78,22 @@ sealed interface ReaderUiState {
         val currentPage: Int,
         val chromeVisible: Boolean,
         val pageRequest: Int? = null,
+        val outline: List<OutlineEntry> = emptyList(),
+        val chapter: Chapter? = null,
+        val bookmarks: List<Bookmark> = emptyList(),
+        val pace: ReadingPace = ReadingPace.Unknown,
+        val session: SessionUi? = null,
+        val contentsVisible: Boolean = false,
     ) : ReaderUiState {
         val pageCount: Int get() = pageSizes.size
         val percent: Float get() = if (pageCount == 0) 0f else (currentPage + 1).toFloat() / pageCount
+        val bookmarked: Boolean get() = bookmarks.any { it.page == currentPage }
+        val hasContents: Boolean get() = outline.isNotEmpty() || bookmarks.isNotEmpty()
+        val timeLeftMs: Long? get() = pace.timeFor(pageCount - currentPage)
     }
 }
+
+data class SessionUi(val startedAt: Long, val pages: Int)
 
 class PageDetail(val page: Int, val region: Rect, val tier: Float, val bitmap: ImageBitmap)
 
@@ -87,11 +104,12 @@ class ReaderViewModel @Inject constructor(
     private val repository: ReaderRepository,
     private val highlightRepository: HighlightRepository,
     private val noteRepository: NoteRepository,
+    private val bookmarkRepository: BookmarkRepository,
     private val sessionRepository: SessionRepository,
     settingsRepository: SettingsRepository,
     private val engine: PdfEngine,
     @ApplicationScope private val appScope: CoroutineScope,
-) : ViewModel(), MarkupActions, NoteActions {
+) : ViewModel(), MarkupActions, NoteActions, ReaderActions {
 
     private val bookId: Long = checkNotNull(savedStateHandle[Routes.ARG_BOOK_ID])
 
@@ -135,6 +153,8 @@ class ReaderViewModel @Inject constructor(
     private var foreground = false
     private var sessionOpen = false
     private var sessionPages = 0
+    private var sessionBasePages = 0
+    private var sessionUiJob: Job? = null
     private var checkpointJob: Job? = null
 
     init {
@@ -163,12 +183,15 @@ class ReaderViewModel @Inject constructor(
         val initial = book.lastPage.coerceIn(0, pageCount - 1)
         savedPage = initial
         currentPage.value = initial
+        val outline = engine.outline()
         _uiState.value = ReaderUiState.Ready(
             title = book.title,
             pageSizes = engine.pageSizes(),
             initialPage = initial,
             currentPage = initial,
             chromeVisible = true,
+            outline = outline,
+            chapter = outline.chapterAt(initial, pageCount),
         )
         scheduleChromeHide()
         openSession()
@@ -203,6 +226,15 @@ class ReaderViewModel @Inject constructor(
                 }
             }
         }
+        viewModelScope.launch {
+            bookmarkRepository.observe(bookId).collect { bookmarks ->
+                updateReady { it.copy(bookmarks = bookmarks) }
+            }
+        }
+        viewModelScope.launch {
+            val pace = sessionRepository.pace(bookId)
+            updateReady { it.copy(pace = pace) }
+        }
         preloadText(initial)
         if (savedStateHandle.get<Boolean>(Routes.ARG_NOTES) == true) {
             savedStateHandle[Routes.ARG_NOTES] = false
@@ -227,7 +259,14 @@ class ReaderViewModel @Inject constructor(
             _zoom.value = ZoomState()
             _detail.value = null
             clearSelection()
-            updateReady { it.copy(currentPage = page) }
+            val pages = sessionBasePages + sessionPages
+            updateReady { state ->
+                state.copy(
+                    currentPage = page,
+                    chapter = state.outline.chapterAt(page, state.pageCount),
+                    session = state.session?.copy(pages = pages),
+                )
+            }
             preloadText(page)
         }
         val pending = pendingNoteId?.let(::findNote) ?: return
@@ -273,6 +312,72 @@ class ReaderViewModel @Inject constructor(
         val layout = layoutFor(currentPage.value) ?: return
         val target = if (_zoom.value.isZoomed) ZoomState.MIN_SCALE else ZoomState.DOUBLE_TAP_SCALE
         animateScale(layout, position, target)
+    }
+
+    override fun onToggleZoom() {
+        scheduleChromeHide()
+        onDoubleTap(Offset(viewport.width / 2f, viewport.height / 2f))
+    }
+
+    override fun onSeek(page: Int) {
+        if (page !in 0 until pageCount) return
+        scheduleChromeHide()
+        if (page != currentPage.value) updateReady { it.copy(pageRequest = page) }
+    }
+
+    override fun onChromeInteraction() = scheduleChromeHide()
+
+    override fun onToggleBookmark() {
+        scheduleChromeHide()
+        val page = currentPage.value
+        viewModelScope.launch { bookmarkRepository.toggle(bookId, page) }
+    }
+
+    override fun onRemoveBookmark(page: Int) {
+        viewModelScope.launch { bookmarkRepository.remove(bookId, page) }
+    }
+
+    override fun onAddPageNote() {
+        onDismissSelection()
+        startEditor(
+            noteId = null,
+            page = currentPage.value,
+            anchor = NoteAnchor(rect = PAGE_NOTE_RECT, highlightId = null, snippet = null),
+            body = "",
+        )
+    }
+
+    override fun onToggleHighlightMode() {
+        if (_markup.value.highlighting) {
+            onDismissSelection()
+        } else {
+            clearSelection()
+            _markup.update { it.copy(highlightMode = true) }
+            updateReady { it.copy(chromeVisible = true) }
+        }
+    }
+
+    override fun onDismissSelection() {
+        clearSelection()
+        _markup.update { it.copy(highlightMode = false) }
+        scheduleChromeHide()
+    }
+
+    override fun onShowContents() {
+        onDismissSelection()
+        updateReady { it.copy(contentsVisible = true) }
+    }
+
+    override fun onHideContents() {
+        updateReady { it.copy(contentsVisible = false) }
+        scheduleChromeHide()
+    }
+
+    override fun onJumpToPage(page: Int) {
+        if (page !in 0 until pageCount) return
+        val request = page.takeIf { it != currentPage.value }
+        updateReady { it.copy(contentsVisible = false, pageRequest = request) }
+        scheduleChromeHide()
     }
 
     private fun animateScale(layout: PageLayout, focus: Offset, target: Float) {
@@ -421,7 +526,7 @@ class ReaderViewModel @Inject constructor(
                 )
             }
         }
-        clearSelection()
+        onDismissSelection()
         if (highlight != null) viewModelScope.launch { highlightRepository.add(bookId, highlight) }
     }
 
@@ -447,7 +552,7 @@ class ReaderViewModel @Inject constructor(
             is SelectionDraft.Region -> current.rect()?.let { NoteAnchor(rect = it, highlightId = null, snippet = null) }
         }
         val page = draft?.page ?: return
-        clearSelection()
+        onDismissSelection()
         if (anchor != null) startEditor(noteId = null, page = page, anchor = anchor, body = "")
     }
 
@@ -589,6 +694,7 @@ class ReaderViewModel @Inject constructor(
                         end = HandleMark(last.right, last.top, last.bottom),
                         region = false,
                         color = selectionColor,
+                        text = textLayer.peek(current.page)?.textFor(current.start, current.end)?.ifEmpty { null },
                     )
                 }
             }
@@ -602,6 +708,7 @@ class ReaderViewModel @Inject constructor(
             )
         }
         _markup.update { it.copy(selection = selection, activeHighlight = null, loupe = loupeFor(selection)) }
+        if (selection != null) updateReady { it.copy(chromeVisible = true) }
     }
 
     private fun showLoupe() {
@@ -757,7 +864,19 @@ class ReaderViewModel @Inject constructor(
         sessionOpen = true
         sessionPages = 0
         val now = System.currentTimeMillis()
-        appScope.launch(start = CoroutineStart.UNDISPATCHED) { sessionRepository.open(bookId, now) }
+        val start = appScope.async(start = CoroutineStart.UNDISPATCHED) { sessionRepository.open(bookId, now) }
+        sessionUiJob = viewModelScope.launch {
+            val info = try {
+                start.await()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Throwable) {
+                return@launch
+            }
+            sessionBasePages = info.basePages
+            val pages = info.basePages + sessionPages
+            updateReady { it.copy(session = SessionUi(startedAt = info.startTs, pages = pages)) }
+        }
         checkpointJob = viewModelScope.launch {
             while (true) {
                 delay(SESSION_CHECKPOINT_MS)
@@ -775,6 +894,10 @@ class ReaderViewModel @Inject constructor(
         sessionOpen = false
         checkpointJob?.cancel()
         checkpointJob = null
+        sessionUiJob?.cancel()
+        sessionUiJob = null
+        sessionBasePages = 0
+        updateReady { it.copy(session = null) }
         val now = System.currentTimeMillis()
         val pages = sessionPages
         appScope.launch(start = CoroutineStart.UNDISPATCHED) { sessionRepository.close(bookId, now, pages) }
@@ -784,7 +907,7 @@ class ReaderViewModel @Inject constructor(
         chromeJob?.cancel()
         chromeJob = viewModelScope.launch {
             delay(CHROME_HIDE_MS)
-            updateReady { it.copy(chromeVisible = false) }
+            if (!_markup.value.highlighting) updateReady { it.copy(chromeVisible = false) }
         }
     }
 
@@ -831,5 +954,6 @@ class ReaderViewModel @Inject constructor(
         const val TEXT_HIT_SLOP = 0.03f
         const val HIGHLIGHT_HIT_SLOP = 0.004f
         const val MIN_REGION_SIZE = 0.01f
+        val PAGE_NOTE_RECT = NormRect(0f, 0f, 1f, 0f)
     }
 }

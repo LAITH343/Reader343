@@ -22,7 +22,6 @@
     <string name="reader_open_failed">تعذّر فتح هذا الكتاب</string>
     <string name="reader_page_indicator">صفحة %1$s من %2$s</string>
     <string name="reader_page_loading">جارٍ تحميل الصفحة %1$d</string>
-    <string name="highlight_confirm">حفظ التظليل</string>
     <string name="highlight_delete">حذف التظليل</string>
     <string name="highlight_color_yellow">أصفر</string>
     <string name="highlight_color_green">أخضر</string>
@@ -336,4 +335,34 @@
     <string name="reset_progress_title">إعادة ضبط التقدم؟</string>
     <string name="reset_progress_message">سيبدأ «%1$s» من الصفحة 1 مجددًا. تبقى الملاحظات والتظليلات وسجل القراءة.</string>
     <string name="action_reset">إعادة ضبط</string>
+    <string name="reader_subtitle_chapter">%1$s · صفحة %2$s</string>
+    <string name="reader_subtitle_page">صفحة %1$s</string>
+    <string name="reader_session">%1$s في هذه الجلسة · %2$s</string>
+    <plurals name="reader_session_pages">
+        <item quantity="zero">%1$s صفحة</item>
+        <item quantity="one">صفحة واحدة</item>
+        <item quantity="two">صفحتان</item>
+        <item quantity="few">%1$s صفحات</item>
+        <item quantity="many">%1$s صفحة</item>
+        <item quantity="other">%1$s صفحة</item>
+    </plurals>
+    <string name="reader_page_fraction">%1$s / %2$s</string>
+    <string name="reader_time_left">متبقٍ %1$s</string>
+    <string name="reader_page_slider">الصفحة</string>
+    <string name="reader_zoom">المكبّر</string>
+    <string name="reader_tool_highlight">تظليل</string>
+    <string name="reader_tool_note">ملاحظة</string>
+    <string name="reader_tool_bookmark">إشارة</string>
+    <string name="reader_tool_contents">المحتويات</string>
+    <string name="selection_dismiss">إغلاق</string>
+    <string name="selection_area">منطقة محددة</string>
+    <string name="selection_quote">«%1$s»</string>
+    <string name="highlight_with_color">تظليل باللون %1$s</string>
+    <string name="contents_title">المحتويات</string>
+    <string name="contents_current">الفصل الحالي</string>
+    <string name="bookmarks_title">الإشارات المرجعية</string>
+    <string name="bookmarks_empty">لا توجد إشارات بعد</string>
+    <string name="bookmarks_empty_hint">المس «إشارة» في شريط الأدوات لحفظ موضعك في الصفحة.</string>
+    <string name="bookmark_remove">إزالة الإشارة من الصفحة %1$s</string>
+    <string name="home_page_progress_chapter">الصفحة %1$s من %2$s · %3$s · متبقٍ %4$s في هذا الفصل</string>
 </resources>

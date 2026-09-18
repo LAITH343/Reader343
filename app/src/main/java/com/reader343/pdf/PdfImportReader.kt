@@ -4,6 +4,7 @@ import android.graphics.Bitmap
 import android.graphics.Color
 import android.os.ParcelFileDescriptor
 import com.reader343.di.PdfDispatcher
+import com.reader343.domain.OutlineEntry
 import io.legere.pdfiumandroid.PdfPage
 import io.legere.pdfiumandroid.PdfiumCore
 import kotlinx.coroutines.CoroutineDispatcher
@@ -12,13 +13,15 @@ import java.io.File
 import javax.inject.Inject
 import javax.inject.Singleton
 
+data class ImportedPdf(val pageCount: Int, val outline: List<OutlineEntry>)
+
 @Singleton
 class PdfImportReader @Inject constructor(
     private val core: PdfiumCore,
     @PdfDispatcher private val dispatcher: CoroutineDispatcher,
 ) {
 
-    suspend fun readAndRenderCover(pdf: File, cover: File, coverWidth: Int = COVER_WIDTH): Int =
+    suspend fun readAndRenderCover(pdf: File, cover: File, coverWidth: Int = COVER_WIDTH): ImportedPdf =
         withContext(dispatcher) {
             val fd = ParcelFileDescriptor.open(pdf, ParcelFileDescriptor.MODE_READ_ONLY)
             val document = try {
@@ -30,7 +33,8 @@ class PdfImportReader @Inject constructor(
             try {
                 val pageCount = document.getPageCount()
                 if (pageCount > 0) document.openPage(0)?.let { renderCover(it, cover, coverWidth) }
-                pageCount
+                val outline = runCatching { document.getTableOfContents().flatten(pageCount) }.getOrDefault(emptyList())
+                ImportedPdf(pageCount, outline)
             } finally {
                 document.close()
             }

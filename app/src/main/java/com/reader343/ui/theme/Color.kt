@@ -133,3 +133,22 @@ object PaperSwatch {
     val Night = Color(0xFF22242F)
     val Sepia = Color(0xFFE8D9BD)
 }
+
+object PaperInk {
+    val Normal = Color(0xFF1B1B1F)
+    val Night = Color(0xFFD8D9E4)
+    val Sepia = Color(0xFF2F2618)
+}
+
+object PaperShell {
+    val Normal = Color(0xFF20222F)
+    val Sepia = Color(0xFF241F18)
+}
+
+object InkColors {
+    val Yellow = Color(0xFFF6BE48)
+    val Green = Color(0xFF7FC48A)
+    val Blue = Color(0xFF7FA7E0)
+    val Pink = Color(0xFFE392B8)
+    val Orange = Color(0xFFE8A06A)
+}

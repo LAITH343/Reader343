@@ -101,3 +101,43 @@ data class SessionEntity(
     val endTs: Long?,
     val pagesRead: Int,
 )
+
+@Entity(
+    tableName = "bookmarks",
+    foreignKeys = [
+        ForeignKey(
+            entity = BookEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["bookId"],
+            onDelete = ForeignKey.CASCADE,
+        ),
+    ],
+    indices = [Index(value = ["bookId", "page"], unique = true)],
+)
+data class BookmarkEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val bookId: Long,
+    val page: Int,
+    val createdAt: Long,
+)
+
+@Entity(
+    tableName = "outline",
+    foreignKeys = [
+        ForeignKey(
+            entity = BookEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["bookId"],
+            onDelete = ForeignKey.CASCADE,
+        ),
+    ],
+    indices = [Index(value = ["bookId", "page"])],
+)
+data class OutlineEntryEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val bookId: Long,
+    val position: Int,
+    val title: String,
+    val page: Int,
+    val depth: Int,
+)

@@ -6,9 +6,13 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ColorMatrix
 import com.reader343.domain.PageAppearance
+import com.reader343.ui.theme.PaperInk
+import com.reader343.ui.theme.PaperShell
+import com.reader343.ui.theme.PaperSwatch
 
 @Immutable
 class PageStyle private constructor(
+    val shell: Color,
     val paper: Color,
     val filter: ColorFilter?,
     val markBlend: BlendMode,
@@ -18,33 +22,25 @@ class PageStyle private constructor(
 
     companion object {
         val Normal = PageStyle(
-            paper = Color.White,
-            filter = null,
+            shell = PaperShell.Normal,
+            paper = PaperSwatch.Normal,
+            filter = paperFilter(paper = PaperSwatch.Normal, ink = PaperInk.Normal),
             markBlend = BlendMode.Multiply,
             markAlpha = 1f,
         )
 
         val Night = PageStyle(
-            paper = Color(NIGHT_PAPER, NIGHT_PAPER, NIGHT_PAPER),
-            filter = ColorFilter.colorMatrix(
-                ColorMatrix(
-                    floatArrayOf(
-                        -NIGHT_SCALE, 0f, 0f, 0f, NIGHT_INK,
-                        0f, -NIGHT_SCALE, 0f, 0f, NIGHT_INK,
-                        0f, 0f, -NIGHT_SCALE, 0f, NIGHT_INK,
-                        0f, 0f, 0f, 1f, 0f,
-                    ),
-                ),
-            ),
+            shell = Color.Unspecified,
+            paper = PaperSwatch.Night,
+            filter = paperFilter(paper = PaperSwatch.Night, ink = PaperInk.Night),
             markBlend = BlendMode.SrcOver,
             markAlpha = NIGHT_MARK_ALPHA,
         )
 
         val Sepia = PageStyle(
-            paper = Color(SEPIA_R, SEPIA_G, SEPIA_B),
-            filter = ColorFilter.colorMatrix(
-                ColorMatrix().apply { setToScale(SEPIA_R, SEPIA_G, SEPIA_B, 1f) },
-            ),
+            shell = PaperShell.Sepia,
+            paper = PaperSwatch.Sepia,
+            filter = paperFilter(paper = PaperSwatch.Sepia, ink = PaperInk.Sepia),
             markBlend = BlendMode.Multiply,
             markAlpha = 1f,
         )
@@ -55,13 +51,25 @@ class PageStyle private constructor(
             PageAppearance.Sepia -> Sepia
         }
 
-        private const val NIGHT_INK = 225f
-        private const val NIGHT_PAPER_LEVEL = 20f
-        private const val NIGHT_SCALE = (NIGHT_INK - NIGHT_PAPER_LEVEL) / 255f
-        private const val NIGHT_PAPER = NIGHT_PAPER_LEVEL / 255f
+        private fun paperFilter(paper: Color, ink: Color): ColorFilter {
+            fun row(channel: Int, paperLevel: Float, inkLevel: Float): FloatArray =
+                FloatArray(COLUMNS).also {
+                    it[channel] = paperLevel - inkLevel
+                    it[OFFSET] = inkLevel * CHANNEL_MAX
+                }
+            return ColorFilter.colorMatrix(
+                ColorMatrix(
+                    row(0, paper.red, ink.red) +
+                        row(1, paper.green, ink.green) +
+                        row(2, paper.blue, ink.blue) +
+                        floatArrayOf(0f, 0f, 0f, 1f, 0f),
+                ),
+            )
+        }
+
+        private const val COLUMNS = 5
+        private const val OFFSET = 4
+        private const val CHANNEL_MAX = 255f
         private const val NIGHT_MARK_ALPHA = 0.35f
-        private const val SEPIA_R = 0.957f
-        private const val SEPIA_G = 0.925f
-        private const val SEPIA_B = 0.847f
     }
 }

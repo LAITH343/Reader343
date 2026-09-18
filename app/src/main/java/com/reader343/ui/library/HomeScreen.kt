@@ -341,16 +341,36 @@ private fun ResumeCard(
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
                     )
+                    book.chapterTitle?.let { chapter ->
+                        Text(
+                            text = chapter,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = colors.ink2,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
                 }
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     ProgressBar(progress = book.percent, color = colors.accLt, trackColor = colors.accLine)
+                    val chapterLeft = book.chapterTimeLeftMs
                     Text(
-                        text = stringResource(
-                            R.string.home_page_progress,
-                            page,
-                            formatNumber(book.pageCount),
-                            formatPercent(book.percent),
-                        ),
+                        text = if (chapterLeft != null) {
+                            stringResource(
+                                R.string.home_page_progress_chapter,
+                                page,
+                                formatNumber(book.pageCount),
+                                formatPercent(book.percent),
+                                formatMinutes(chapterLeft.coerceAtLeast(MINUTE_MS)),
+                            )
+                        } else {
+                            stringResource(
+                                R.string.home_page_progress,
+                                page,
+                                formatNumber(book.pageCount),
+                                formatPercent(book.percent),
+                            )
+                        },
                         style = MaterialTheme.appType.caption,
                         color = colors.ink2,
                     )

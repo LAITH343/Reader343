@@ -260,7 +260,11 @@ private fun bookMeta(book: BookWithProgress): String = stringResource(
 private val ShelfCoverWidth = 108.dp
 
 internal val PreviewBooks = listOf(
-    BookWithProgress(1, "Designing Data-Intensive Applications", null, 491, 26, 0.05f, System.currentTimeMillis() - 3_600_000, highlightCount = 12, noteCount = 2),
+    BookWithProgress(
+        1, "Designing Data-Intensive Applications", null, 491, 26, 0.05f, System.currentTimeMillis() - 3_600_000,
+        highlightCount = 12, noteCount = 2, bookmarkCount = 1,
+        chapterTitle = "Chapter 1 · Reliability", chapterEndPage = 40, msPerPage = 90_000L,
+    ),
     BookWithProgress(2, "The Rust Programming Language", null, 560, 268, 0.48f, System.currentTimeMillis() - 86_400_000, highlightCount = 31),
     BookWithProgress(3, "Crafting Interpreters", null, 640, 486, 0.76f, System.currentTimeMillis() - 259_200_000, highlightCount = 40, noteCount = 12),
     BookWithProgress(4, "Operating Systems: Three Easy Pieces", null, 714, 0, 0f, null),

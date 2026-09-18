@@ -9,4 +9,14 @@ data class BookWithProgressRow(
     val progress: ProgressEntity?,
     val highlightCount: Int,
     val noteCount: Int,
+    val bookmarkCount: Int,
+    val chapterTitle: String?,
+    val chapterEndPage: Int?,
+    val readMs: Long,
+    val readPages: Int,
+)
+
+data class PaceRow(
+    val timeMs: Long,
+    val pages: Int,
 )

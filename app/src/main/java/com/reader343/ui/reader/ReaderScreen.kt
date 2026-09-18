@@ -5,8 +5,6 @@ import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.selection.selectableGroup
-import androidx.compose.material3.ripple
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
@@ -18,28 +16,21 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import com.reader343.ui.components.AppBottomSheet
 import com.reader343.ui.components.AppTopBar
-import com.reader343.ui.components.BookProgress
 import com.reader343.ui.components.ErrorState
 import com.reader343.ui.components.FloatingToolbar
 import com.reader343.ui.components.IconTextButton
 import com.reader343.ui.components.LoadingState
-import com.reader343.ui.components.Motion
 import com.reader343.ui.components.PrimaryButton
 import com.reader343.ui.components.QuoteBlock
 import com.reader343.ui.components.SecondaryButton
 import com.reader343.ui.components.SheetHeader
 import com.reader343.ui.components.StateContent
-import com.reader343.ui.components.TopBarAction
-import com.reader343.ui.components.formatNumber
-import com.reader343.ui.components.reducedMotion
 import com.reader343.ui.theme.spacing
 import androidx.compose.foundation.magnifier
 import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.Velocity
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
@@ -74,17 +65,11 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.selection.selectable
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -118,9 +103,6 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.IntOffset
@@ -131,10 +113,16 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.reader343.R
+import com.reader343.domain.Bookmark
 import com.reader343.domain.Highlight
 import com.reader343.domain.NormRect
+import com.reader343.domain.OutlineEntry
+import com.reader343.domain.ReadingPace
+import com.reader343.domain.chapterAt
 import com.reader343.pdf.PageSize
 import com.reader343.ui.theme.Reader343Theme
+import com.reader343.ui.theme.appColors
+import androidx.compose.ui.graphics.takeOrElse
 import kotlin.math.roundToInt
 
 @Composable
@@ -160,6 +148,7 @@ fun ReaderRoute(
         markupActions = viewModel,
         notes = notes,
         noteActions = viewModel,
+        readerActions = viewModel,
         onBack = onBack,
         onPageSettled = viewModel::onPageSettled,
         onPageRequestHandled = viewModel::onPageRequestHandled,
@@ -183,6 +172,7 @@ fun ReaderScreen(
     markupActions: MarkupActions,
     notes: NotesUiState,
     noteActions: NoteActions,
+    readerActions: ReaderActions,
     onBack: () -> Unit,
     onPageSettled: (Int) -> Unit,
     onPageRequestHandled: () -> Unit,
@@ -200,7 +190,7 @@ fun ReaderScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.surfaceContainerHighest),
+            .background(pageStyle.shell.takeOrElse { MaterialTheme.appColors.bg }),
     ) {
         when (state) {
             ReaderUiState.Loading -> LoadingState()
@@ -237,22 +227,35 @@ fun ReaderScreen(
                         loadPage = loadPage,
                     )
                 }
-                ReaderTopBar(
+                ReaderTopChrome(
                     visible = state.chromeVisible,
-                    title = state.title,
+                    state = state,
+                    hasNotes = notes.byPage.isNotEmpty(),
+                    zoomed = zoom.isZoomed,
                     onBack = onBack,
                     onShowNotes = noteActions::onShowNotes,
+                    onToggleZoom = readerActions::onToggleZoom,
                     modifier = Modifier.align(Alignment.TopCenter),
                 )
-                ReaderBottomBar(
+                ReaderBottomChrome(
                     visible = state.chromeVisible,
-                    page = state.currentPage,
-                    pageCount = state.pageCount,
-                    percent = state.percent,
+                    state = state,
+                    markup = markup,
+                    actions = readerActions,
+                    markupActions = markupActions,
+                    onAddNoteFromSelection = noteActions::onAddNoteFromSelection,
                     modifier = Modifier.align(Alignment.BottomCenter),
                 )
                 notes.editor?.let { NoteSheet(editor = it, actions = noteActions) }
                 if (notes.listVisible) NotesListSheet(notes = notes, actions = noteActions)
+                if (state.contentsVisible) {
+                    ContentsSheet(
+                        state = state,
+                        onJump = readerActions::onJumpToPage,
+                        onRemoveBookmark = readerActions::onRemoveBookmark,
+                        onDismiss = readerActions::onHideContents,
+                    )
+                }
             }
         }
     }
@@ -295,7 +298,7 @@ private fun ReaderPager(
     HorizontalPager(
         state = pagerState,
         modifier = Modifier.fillMaxSize(),
-        userScrollEnabled = !zoom.isZoomed && markup.selection == null,
+        userScrollEnabled = !zoom.isZoomed && !markup.highlighting,
         key = { it },
     ) { index ->
         val active = index == state.currentPage
@@ -309,9 +312,10 @@ private fun ReaderPager(
             selection = markup.selection?.takeIf { active && it.page == index },
             activeHighlight = markup.activeHighlight?.takeIf { active && it.page == index },
             loupe = markup.loupe?.takeIf { active },
+            highlightMode = markup.highlightMode,
             markupActions = markupActions,
             notes = notes.byPage[index].orEmpty(),
-            noteAnchor = notes.editor?.takeIf { active && it.page == index }?.anchor?.rect,
+            noteAnchor = notes.editor?.takeIf { active && it.page == index }?.anchor?.rect?.takeUnless { it.isEmpty },
             activeHighlightHasNote = markup.activeHighlight?.let { notes.forHighlight(it.id) } != null,
             noteActions = noteActions,
             uiDirection = uiDirection,
@@ -337,6 +341,7 @@ private fun PdfPage(
     selection: SelectionUi?,
     activeHighlight: Highlight?,
     loupe: Loupe?,
+    highlightMode: Boolean,
     markupActions: MarkupActions,
     notes: List<Note>,
     noteAnchor: NormRect?,
@@ -372,6 +377,7 @@ private fun PdfPage(
     val currentZoom by rememberUpdatedState(zoom)
     val currentLayout by rememberUpdatedState(layout)
     val currentSelection by rememberUpdatedState(selection)
+    val currentHighlightMode by rememberUpdatedState(highlightMode)
     val currentActions by rememberUpdatedState(markupActions)
     val currentOnZoomGestureStart by rememberUpdatedState(onZoomGestureStart)
     val currentOnTransform by rememberUpdatedState(onTransform)
@@ -428,6 +434,7 @@ private fun PdfPage(
                                     handleAt(it, currentLayout, currentZoom, position, handleRadius, handleTouchRadius)
                                 }
                             },
+                            highlightMode = { currentHighlightMode },
                             actions = { currentActions },
                         )
                     }
@@ -478,20 +485,7 @@ private fun PdfPage(
                 },
         )
         CompositionLocalProvider(LocalLayoutDirection provides uiDirection) {
-            if (selection != null && loupe == null) {
-                SelectionPalette(
-                    selectedColor = selection.color,
-                    canConfirm = selection.canConfirm,
-                    onColorSelected = markupActions::onColorSelected,
-                    onConfirm = markupActions::onConfirmHighlight,
-                    onAddNote = noteActions::onAddNoteFromSelection,
-                    modifier = Modifier.floatNear(
-                        anchor = screenBounds(selection.bounds, layout, zoom, if (selection.region) 0f else handleRadius * 2f),
-                        gap = floatGap,
-                        margin = floatMargin,
-                    ),
-                )
-            } else if (selection == null && activeHighlight != null) {
+            if (selection == null && activeHighlight != null) {
                 val bounds = activeHighlight.rects.reduceOrNull(NormRect::union)
                 if (bounds != null) {
                     HighlightMenu(
@@ -678,6 +672,7 @@ private fun Modifier.floatNear(anchor: Rect, gap: Float, margin: Float): Modifie
 
 private suspend fun PointerInputScope.detectSelectionGestures(
     handleAt: (Offset) -> Pair<SelectionHandle, Offset>?,
+    highlightMode: () -> Boolean,
     actions: () -> MarkupActions,
 ) {
     awaitEachGesture {
@@ -686,6 +681,9 @@ private suspend fun PointerInputScope.detectSelectionGestures(
         if (grabbed != null) {
             down.consume()
             actions().onHandleGrab(grabbed.first, down.position, grabbed.second)
+        } else if (highlightMode()) {
+            down.consume()
+            actions().onLongPress(down.position)
         } else {
             val press = awaitLongPressOrCancellation(down.id) ?: return@awaitEachGesture
             press.consume()
@@ -747,88 +745,6 @@ private suspend fun PointerInputScope.detectZoomAndPan(
             }
         } while (event.changes.any { it.pressed })
         if (transformed) onEnd(centroid, tracker.calculateVelocity())
-    }
-}
-
-@Composable
-private fun SelectionPalette(
-    selectedColor: Int,
-    canConfirm: Boolean,
-    onColorSelected: (Int) -> Unit,
-    onConfirm: () -> Unit,
-    onAddNote: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    FloatingToolbar(
-        modifier = modifier,
-        contentPadding = PaddingValues(start = MaterialTheme.spacing.xs, end = MaterialTheme.spacing.xs),
-    ) {
-        Row(Modifier.selectableGroup()) {
-            HighlightColor.entries.forEach { color ->
-                ColorSwatch(
-                    color = Color(color.argb),
-                    label = stringResource(color.label),
-                    selected = color.argb == selectedColor,
-                    onClick = { onColorSelected(color.argb) },
-                )
-            }
-        }
-        IconButton(onClick = onAddNote, enabled = canConfirm) {
-            Icon(
-                painter = painterResource(R.drawable.ic_ph_note_pencil),
-                contentDescription = stringResource(R.string.note_add),
-            )
-        }
-        IconButton(onClick = onConfirm, enabled = canConfirm) {
-            Icon(
-                painter = painterResource(R.drawable.ic_ph_check),
-                contentDescription = stringResource(R.string.highlight_confirm),
-            )
-        }
-    }
-}
-
-@Composable
-private fun ColorSwatch(
-    color: Color,
-    label: String,
-    selected: Boolean,
-    onClick: () -> Unit,
-) {
-    Box(
-        modifier = Modifier
-            .size(SwatchTouchSize)
-            .selectable(
-                selected = selected,
-                role = Role.RadioButton,
-                interactionSource = null,
-                indication = ripple(bounded = false, radius = SwatchTouchSize / 2),
-                onClick = onClick,
-            )
-            .semantics { contentDescription = label },
-        contentAlignment = Alignment.Center,
-    ) {
-        Box(
-            modifier = Modifier
-                .size(SwatchSize)
-                .clip(CircleShape)
-                .background(color)
-                .border(
-                    width = if (selected) SwatchSelectedBorder else SwatchBorder,
-                    color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
-                    shape = CircleShape,
-                ),
-            contentAlignment = Alignment.Center,
-        ) {
-            if (selected) {
-                Icon(
-                    painter = painterResource(R.drawable.ic_ph_check),
-                    contentDescription = null,
-                    tint = SwatchCheckColor,
-                    modifier = Modifier.size(SwatchCheckSize),
-                )
-            }
-        }
     }
 }
 
@@ -992,72 +908,6 @@ private val LoupeCornerRadius = 32.dp
 private val LoupeLift = 80.dp
 private const val LOUPE_ZOOM = 2f
 
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun ReaderTopBar(
-    visible: Boolean,
-    title: String,
-    onBack: () -> Unit,
-    onShowNotes: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val reduced = reducedMotion()
-    AnimatedVisibility(
-        visible = visible,
-        modifier = modifier,
-        enter = Motion.slideFromEdge(reduced, fromTop = true),
-        exit = Motion.slideToEdge(reduced, toTop = true),
-    ) {
-        Surface(color = MaterialTheme.colorScheme.surfaceContainer, shadowElevation = ChromeElevation) {
-            AppTopBar(
-                title = title,
-                onBack = onBack,
-                containerColor = MaterialTheme.colorScheme.surfaceContainer,
-                actions = {
-                    TopBarAction(
-                        icon = R.drawable.ic_ph_note,
-                        contentDescription = stringResource(R.string.notes_title),
-                        onClick = onShowNotes,
-                    )
-                },
-            )
-        }
-    }
-}
-
-@Composable
-private fun ReaderBottomBar(
-    visible: Boolean,
-    page: Int,
-    pageCount: Int,
-    percent: Float,
-    modifier: Modifier = Modifier,
-) {
-    val reduced = reducedMotion()
-    AnimatedVisibility(
-        visible = visible,
-        modifier = modifier,
-        enter = Motion.slideFromEdge(reduced, fromTop = false),
-        exit = Motion.slideToEdge(reduced, toTop = false),
-    ) {
-        Surface(color = MaterialTheme.colorScheme.surfaceContainer, shadowElevation = ChromeElevation) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .navigationBarsPadding()
-                    .padding(horizontal = MaterialTheme.spacing.lg, vertical = MaterialTheme.spacing.md),
-                verticalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.sm),
-            ) {
-                Text(
-                    text = stringResource(R.string.reader_page_indicator, formatNumber(page + 1), formatNumber(pageCount)),
-                    style = MaterialTheme.typography.labelLarge,
-                )
-                BookProgress(percent = percent)
-            }
-        }
-    }
-}
-
 @Composable
 private fun SystemBarsVisibility(visible: Boolean) {
     val view = LocalView.current
@@ -1083,43 +933,79 @@ private tailrec fun Context.findActivity(): Activity? = when (this) {
     else -> null
 }
 
-private val ChromeElevation = 3.dp
-private val SwatchTouchSize = 48.dp
-private val SwatchSize = 30.dp
-private val SwatchBorder = 1.dp
-private val SwatchSelectedBorder = 2.dp
-private val SwatchCheckSize = 18.dp
-private val SwatchCheckColor = Color(0xDE000000)
 private val NoteFieldMinHeight = 120.dp
 private val SheetStateHeight = 160.dp
 
-@Preview(showBackground = true)
+private val PreviewOutline = listOf(
+    OutlineEntry("Preface", 0, 0),
+    OutlineEntry("Chapter 1 · Reliability", 2, 0),
+    OutlineEntry("Hardware faults", 5, 1),
+    OutlineEntry("Chapter 2 · Data models", 9, 0),
+)
+
+private fun previewState(page: Int) = ReaderUiState.Ready(
+    title = "Designing Data-Intensive Applications",
+    pageSizes = List(12) { PageSize(612f, 792f) },
+    initialPage = page,
+    currentPage = page,
+    chromeVisible = true,
+    outline = PreviewOutline,
+    chapter = PreviewOutline.chapterAt(page, 12),
+    bookmarks = listOf(Bookmark(id = 1, page = page, createdAt = 0L)),
+    pace = ReadingPace(bookMsPerPage = 95_000L, overallMsPerPage = null),
+    session = SessionUi(startedAt = System.currentTimeMillis() - 12 * 60_000L, pages = 9),
+)
+
+@Composable
+private fun ReaderPreviewContent(state: ReaderUiState, markup: MarkupState = MarkupState(), pageStyle: PageStyle = PageStyle.Normal) {
+    ReaderScreen(
+        state = state,
+        zoom = ZoomState(),
+        detail = null,
+        markup = markup,
+        markupActions = MarkupActions.None,
+        notes = NotesUiState(),
+        noteActions = NoteActions.None,
+        readerActions = ReaderActions.None,
+        onBack = {},
+        onPageSettled = {},
+        onPageRequestHandled = {},
+        onZoomGestureStart = {},
+        onTransform = { _, _, _ -> },
+        onZoomGestureEnd = { _, _ -> },
+        onDoubleTap = {},
+        onTap = {},
+        loadPage = { _, _ -> null },
+        pageStyle = pageStyle,
+    )
+}
+
+@Preview(showBackground = true, heightDp = 780)
 @Composable
 private fun ReaderReadyPreview() {
     Reader343Theme {
-        ReaderScreen(
-            state = ReaderUiState.Ready(
-                title = "Sample book",
-                pageSizes = List(12) { PageSize(612f, 792f) },
-                initialPage = 3,
-                currentPage = 3,
-                chromeVisible = true,
+        ReaderPreviewContent(state = previewState(3))
+    }
+}
+
+@Preview(showBackground = true, heightDp = 780, locale = "ar")
+@Composable
+private fun ReaderSelectionRtlPreview() {
+    Reader343Theme(darkTheme = false) {
+        ReaderPreviewContent(
+            state = previewState(3).copy(outline = emptyList(), chapter = null, bookmarks = emptyList()),
+            pageStyle = PageStyle.Sepia,
+            markup = MarkupState(
+                selection = SelectionUi(
+                    page = 3,
+                    rects = listOf(NormRect(0.1f, 0.2f, 0.6f, 0.23f)),
+                    start = HandleMark(0.1f, 0.2f, 0.23f),
+                    end = HandleMark(0.6f, 0.2f, 0.23f),
+                    region = false,
+                    color = HighlightColor.Green.argb,
+                    text = "keep faults from turning into failures",
+                ),
             ),
-            zoom = ZoomState(),
-            detail = null,
-            markup = MarkupState(),
-            markupActions = MarkupActions.None,
-            notes = NotesUiState(),
-            noteActions = NoteActions.None,
-            onBack = {},
-            onPageSettled = {},
-            onPageRequestHandled = {},
-            onZoomGestureStart = {},
-            onTransform = { _, _, _ -> },
-            onZoomGestureEnd = { _, _ -> },
-            onDoubleTap = {},
-            onTap = {},
-            loadPage = { _, _ -> null },
         )
     }
 }
@@ -1136,6 +1022,7 @@ private fun ReaderErrorPreview() {
             markupActions = MarkupActions.None,
             notes = NotesUiState(),
             noteActions = NoteActions.None,
+            readerActions = ReaderActions.None,
             onBack = {},
             onPageSettled = {},
             onPageRequestHandled = {},

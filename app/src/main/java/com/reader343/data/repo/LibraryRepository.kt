@@ -7,12 +7,15 @@ import android.provider.OpenableColumns
 import androidx.room.withTransaction
 import com.reader343.data.db.ReaderDatabase
 import com.reader343.data.db.dao.BookDao
+import com.reader343.data.db.dao.OutlineDao
 import com.reader343.data.db.dao.ProgressDao
 import com.reader343.data.db.entity.BookEntity
 import com.reader343.data.db.entity.BookWithProgressRow
+import com.reader343.data.db.entity.OutlineEntryEntity
 import com.reader343.data.db.entity.ProgressEntity
 import com.reader343.domain.BookWithProgress
 import com.reader343.domain.continueCandidate
+import com.reader343.domain.msPerPage
 import com.reader343.pdf.PdfImportReader
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CancellationException
@@ -32,6 +35,7 @@ class LibraryRepository @Inject constructor(
     private val database: ReaderDatabase,
     private val bookDao: BookDao,
     private val progressDao: ProgressDao,
+    private val outlineDao: OutlineDao,
     private val pdfReader: PdfImportReader,
 ) {
 
@@ -39,7 +43,10 @@ class LibraryRepository @Inject constructor(
     private val coversDir get() = File(context.filesDir, "covers").apply { mkdirs() }
 
     fun observeBooks(): Flow<List<BookWithProgress>> =
-        bookDao.observeWithProgress().map { rows -> rows.map { it.toDomain() } }
+        bookDao.observeWithProgress().map { rows ->
+            val overall = msPerPage(rows.sumOf { it.readMs }, rows.sumOf { it.readPages })
+            rows.map { it.toDomain(overall) }
+        }
 
     suspend fun continueBook(): BookWithProgress? = observeBooks().first().continueCandidate()
 
@@ -53,7 +60,7 @@ class LibraryRepository @Inject constructor(
                 ?: error("Unable to open $uri")
             input.use { src -> pdfFile.outputStream().use { src.copyTo(it) } }
 
-            val pageCount = pdfReader.readAndRenderCover(pdfFile, coverFile)
+            val imported = pdfReader.readAndRenderCover(pdfFile, coverFile)
             val now = System.currentTimeMillis()
             val bookId = database.withTransaction {
                 val bookId = bookDao.insert(
@@ -61,7 +68,7 @@ class LibraryRepository @Inject constructor(
                         title = displayName(uri) ?: pdfFile.nameWithoutExtension,
                         sourceUri = uri.toString(),
                         filePath = pdfFile.absolutePath,
-                        pageCount = pageCount,
+                        pageCount = imported.pageCount,
                         coverPath = coverFile.takeIf { it.exists() }?.absolutePath,
                         addedAt = now,
                     ),
@@ -74,6 +81,17 @@ class LibraryRepository @Inject constructor(
                         percent = 0f,
                         updatedAt = 0L,
                     ),
+                )
+                outlineDao.insertAll(
+                    imported.outline.mapIndexed { index, entry ->
+                        OutlineEntryEntity(
+                            bookId = bookId,
+                            position = index,
+                            title = entry.title,
+                            page = entry.page,
+                            depth = entry.depth,
+                        )
+                    },
                 )
                 bookId
             }
@@ -121,7 +139,7 @@ class LibraryRepository @Inject constructor(
             ?.substringBeforeLast('.')
             ?.takeIf { it.isNotBlank() }
 
-    private fun BookWithProgressRow.toDomain() = BookWithProgress(
+    private fun BookWithProgressRow.toDomain(overallMsPerPage: Long?) = BookWithProgress(
         id = book.id,
         title = book.title,
         coverPath = book.coverPath,
@@ -132,5 +150,9 @@ class LibraryRepository @Inject constructor(
         finishedAt = progress?.finishedAt,
         highlightCount = highlightCount,
         noteCount = noteCount,
+        bookmarkCount = bookmarkCount,
+        chapterTitle = chapterTitle,
+        chapterEndPage = chapterEndPage,
+        msPerPage = msPerPage(readMs, readPages) ?: overallMsPerPage,
     )
 }
