@@ -15,6 +15,7 @@ data class NotesUiState(
     val byPage: Map<Int, List<Note>> = emptyMap(),
     val editor: NoteEditor? = null,
     val listVisible: Boolean = false,
+    val loaded: Boolean = false,
 ) {
     val all: List<Note> get() = byPage.keys.sorted().flatMap { byPage.getValue(it) }
 

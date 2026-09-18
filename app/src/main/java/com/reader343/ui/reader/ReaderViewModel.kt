@@ -184,6 +184,7 @@ class ReaderViewModel @Inject constructor(
             noteRepository.observe(bookId).collect { notes ->
                 _notes.update { state ->
                     state.copy(
+                        loaded = true,
                         byPage = notes.groupBy { it.page },
                         editor = state.editor?.takeIf { editor ->
                             editor.noteId == null || notes.any { it.id == editor.noteId }

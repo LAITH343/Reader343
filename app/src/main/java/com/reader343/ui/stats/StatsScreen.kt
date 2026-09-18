@@ -2,30 +2,27 @@ package com.reader343.ui.stats
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.rememberTopAppBarState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -33,13 +30,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -47,22 +47,37 @@ import com.reader343.R
 import com.reader343.domain.BookStats
 import com.reader343.domain.DayStats
 import com.reader343.domain.ReadingStats
+import com.reader343.ui.components.AppCard
+import com.reader343.ui.components.AppTopBar
+import com.reader343.ui.components.BookProgress
+import com.reader343.ui.components.CardEmphasis
+import com.reader343.ui.components.EmptyState
+import com.reader343.ui.components.ErrorState
+import com.reader343.ui.components.LoadingState
+import com.reader343.ui.components.SectionHeader
+import com.reader343.ui.components.StatTile
+import com.reader343.ui.components.formatDate
+import com.reader343.ui.components.formatDecimal
+import com.reader343.ui.components.formatDuration
+import com.reader343.ui.components.formatNumber
+import com.reader343.ui.components.formatWeekday
 import com.reader343.ui.theme.Reader343Theme
+import com.reader343.ui.theme.spacing
 import java.time.LocalDate
-import java.time.format.TextStyle
-import java.util.Locale
-import kotlin.math.roundToInt
 
 @Composable
 fun StatsRoute(
     onBack: () -> Unit,
+    onOpenBook: (Long) -> Unit,
     viewModel: StatsViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     StatsScreen(
         state = state,
         onBack = onBack,
+        onOpenBook = onOpenBook,
         onMetricSelected = viewModel::onMetricSelected,
+        onRetry = viewModel::retry,
     )
 }
 
@@ -71,60 +86,50 @@ fun StatsRoute(
 fun StatsScreen(
     state: StatsUiState,
     onBack: () -> Unit,
+    onOpenBook: (Long) -> Unit,
     onMetricSelected: (ChartMetric) -> Unit,
+    onRetry: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior(rememberTopAppBarState())
     Scaffold(
-        modifier = modifier,
+        modifier = modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
-            TopAppBar(
-                title = { Text(stringResource(R.string.stats_title)) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(
-                            painter = painterResource(R.drawable.ic_arrow_back),
-                            contentDescription = stringResource(R.string.action_back),
-                        )
-                    }
-                },
+            AppTopBar(
+                title = stringResource(R.string.stats_title),
+                onBack = onBack,
+                scrollBehavior = scrollBehavior,
             )
         },
     ) { padding ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding),
-        ) {
-            when (state) {
-                StatsUiState.Loading -> CircularProgressIndicator(Modifier.align(Alignment.Center))
-                StatsUiState.Empty -> EmptyStats(Modifier.align(Alignment.Center))
-                is StatsUiState.Content -> StatsContent(
-                    stats = state.stats,
-                    metric = state.metric,
-                    onMetricSelected = onMetricSelected,
-                )
-            }
+        val contentModifier = Modifier
+            .fillMaxSize()
+            .padding(padding)
+        when (state) {
+            StatsUiState.Loading -> LoadingState(contentModifier)
+            StatsUiState.Error -> ErrorState(
+                message = stringResource(R.string.stats_load_failed),
+                actionLabel = stringResource(R.string.action_retry),
+                onAction = onRetry,
+                modifier = contentModifier,
+            )
+            StatsUiState.Empty -> EmptyState(
+                icon = R.drawable.ic_bar_chart,
+                title = stringResource(R.string.stats_empty),
+                body = stringResource(R.string.stats_empty_hint),
+                modifier = contentModifier,
+                action = {
+                    FilledTonalButton(onClick = onBack) { Text(stringResource(R.string.stats_go_library)) }
+                },
+            )
+            is StatsUiState.Content -> StatsContent(
+                stats = state.stats,
+                metric = state.metric,
+                onMetricSelected = onMetricSelected,
+                onOpenBook = onOpenBook,
+                modifier = contentModifier,
+            )
         }
-    }
-}
-
-@Composable
-private fun EmptyStats(modifier: Modifier = Modifier) {
-    Column(
-        modifier = modifier.padding(32.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        Text(
-            text = stringResource(R.string.stats_empty),
-            style = MaterialTheme.typography.titleLarge,
-        )
-        Text(
-            text = stringResource(R.string.stats_empty_hint),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center,
-        )
     }
 }
 
@@ -133,13 +138,17 @@ private fun StatsContent(
     stats: ReadingStats,
     metric: ChartMetric,
     onMetricSelected: (ChartMetric) -> Unit,
+    onOpenBook: (Long) -> Unit,
+    modifier: Modifier = Modifier,
 ) {
+    val spacing = MaterialTheme.spacing
     LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
+        modifier = modifier,
+        contentPadding = PaddingValues(start = spacing.lg, end = spacing.lg, bottom = spacing.xl),
+        verticalArrangement = Arrangement.spacedBy(spacing.md),
     ) {
         item { OverviewCard(stats) }
+        item { SectionHeader(stringResource(R.string.stats_last_days)) }
         item {
             ChartCard(
                 days = stats.days,
@@ -148,86 +157,42 @@ private fun StatsContent(
             )
         }
         if (stats.books.isNotEmpty()) {
-            item {
-                Text(
-                    text = stringResource(R.string.stats_books),
-                    style = MaterialTheme.typography.titleMedium,
-                    modifier = Modifier.padding(top = 8.dp),
-                )
+            item { SectionHeader(stringResource(R.string.stats_books)) }
+            items(stats.books, key = { it.bookId }) { book ->
+                BookStatsCard(book = book, onClick = { onOpenBook(book.bookId) })
             }
-            items(stats.books, key = { it.bookId }) { BookStatsCard(it) }
         }
     }
 }
 
 @Composable
 private fun OverviewCard(stats: ReadingStats) {
-    Card(
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
+    val tiles = listOf(
+        pluralStringResource(R.plurals.stats_days, stats.streakDays, formatNumber(stats.streakDays)) to
+            stringResource(R.string.stats_streak),
+        formatDuration(stats.totalTimeMs) to stringResource(R.string.stats_total_time),
+        formatNumber(stats.booksInProgress) to stringResource(R.string.stats_in_progress),
+        formatDuration(stats.avgSessionMs) to stringResource(R.string.stats_avg_session),
+        formatDecimal(stats.pagesPerDay) to stringResource(R.string.stats_pages_per_day),
+        formatNumber(stats.sessionCount) to stringResource(R.string.stats_sessions),
+    )
+    AppCard(
+        emphasis = CardEmphasis.Highlighted,
         modifier = Modifier.fillMaxWidth(),
     ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                StatTile(
-                    value = pluralStringResource(R.plurals.stats_days, stats.streakDays, stats.streakDays),
-                    label = stringResource(R.string.stats_streak),
-                    modifier = Modifier.weight(1f),
-                )
-                StatTile(
-                    value = formatDuration(stats.totalTimeMs),
-                    label = stringResource(R.string.stats_total_time),
-                    modifier = Modifier.weight(1f),
-                )
-                StatTile(
-                    value = stats.booksInProgress.toString(),
-                    label = stringResource(R.string.stats_in_progress),
-                    modifier = Modifier.weight(1f),
-                )
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                StatTile(
-                    value = formatDuration(stats.avgSessionMs),
-                    label = stringResource(R.string.stats_avg_session),
-                    modifier = Modifier.weight(1f),
-                )
-                StatTile(
-                    value = formatDecimal(stats.pagesPerDay),
-                    label = stringResource(R.string.stats_pages_per_day),
-                    modifier = Modifier.weight(1f),
-                )
-                StatTile(
-                    value = stats.sessionCount.toString(),
-                    label = stringResource(R.string.stats_sessions),
-                    modifier = Modifier.weight(1f),
-                )
+        BoxWithConstraints(Modifier.padding(MaterialTheme.spacing.lg)) {
+            val columns = if (maxWidth < WideLayout) 2 else 3
+            Column(verticalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.lg)) {
+                tiles.chunked(columns).forEach { row ->
+                    Row(horizontalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.sm)) {
+                        row.forEach { (value, label) ->
+                            StatTile(value = value, label = label, modifier = Modifier.weight(1f))
+                        }
+                        repeat(columns - row.size) { Spacer(Modifier.weight(1f)) }
+                    }
+                }
             }
         }
-    }
-}
-
-@Composable
-private fun StatTile(
-    value: String,
-    label: String,
-    modifier: Modifier = Modifier,
-) {
-    Column(modifier = modifier) {
-        Text(
-            text = value,
-            style = MaterialTheme.typography.titleLarge,
-            fontWeight = FontWeight.SemiBold,
-            color = MaterialTheme.colorScheme.onPrimaryContainer,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.75f),
-        )
     }
 }
 
@@ -243,18 +208,25 @@ private fun ChartCard(
         ChartMetric.Time -> stringResource(R.string.stats_chart_time, formatDuration(days.sumOf { it.timeMs }))
         ChartMetric.Pages -> {
             val pages = days.sumOf { it.pages }
-            pluralStringResource(R.plurals.stats_chart_pages, pages, pages)
+            pluralStringResource(R.plurals.stats_chart_pages, pages, formatNumber(pages))
         }
     }
-    Card(modifier = Modifier.fillMaxWidth()) {
+    val dayDescriptions = days.map { day ->
+        stringResource(
+            R.string.stats_chart_day,
+            formatDate(day.date),
+            when (metric) {
+                ChartMetric.Time -> formatDuration(day.timeMs)
+                ChartMetric.Pages -> pluralStringResource(R.plurals.stats_pages_value, day.pages, formatNumber(day.pages))
+            },
+        )
+    }
+    val chartDescription = (listOf(summary) + dayDescriptions).joinToString(separator = "\n")
+    AppCard(modifier = Modifier.fillMaxWidth()) {
         Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+            modifier = Modifier.padding(MaterialTheme.spacing.lg),
+            verticalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.md),
         ) {
-            Text(
-                text = stringResource(R.string.stats_last_days),
-                style = MaterialTheme.typography.titleMedium,
-            )
             SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
                 ChartMetric.entries.forEachIndexed { index, entry ->
                     SegmentedButton(
@@ -275,23 +247,30 @@ private fun ChartCard(
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            BarChart(
-                values = values,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(140.dp),
-            )
-            Row(modifier = Modifier.fillMaxWidth()) {
-                days.forEachIndexed { index, day ->
-                    val today = index == days.lastIndex
-                    Text(
-                        text = day.date.dayOfWeek.getDisplayName(TextStyle.NARROW, Locale.getDefault()),
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = if (today) FontWeight.Bold else FontWeight.Normal,
-                        color = if (today) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.weight(1f),
-                    )
+            Column(
+                modifier = Modifier.clearAndSetSemantics { contentDescription = chartDescription },
+                verticalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.sm),
+            ) {
+                BarChart(
+                    values = values,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(ChartHeight),
+                )
+                Row(modifier = Modifier.fillMaxWidth()) {
+                    days.forEachIndexed { index, day ->
+                        val today = index == days.lastIndex
+                        Text(
+                            text = formatWeekday(day.date),
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = if (today) FontWeight.Bold else FontWeight.Normal,
+                            color = if (today) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                            textAlign = TextAlign.Center,
+                            maxLines = 1,
+                            overflow = TextOverflow.Clip,
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
                 }
             }
         }
@@ -304,19 +283,27 @@ private fun BarChart(
     modifier: Modifier = Modifier,
 ) {
     val barColor = MaterialTheme.colorScheme.primary
+    val todayColor = MaterialTheme.colorScheme.tertiary
     val emptyColor = MaterialTheme.colorScheme.outlineVariant
     Canvas(modifier = modifier) {
         if (values.isEmpty()) return@Canvas
         val max = values.max().coerceAtLeast(1f)
         val slot = size.width / values.size
-        val barWidth = slot * 0.6f
+        val barWidth = slot * BAR_FILL
         val radius = CornerRadius(barWidth / 4f, barWidth / 4f)
         val stub = 2.dp.toPx()
+        val rtl = layoutDirection == LayoutDirection.Rtl
         values.forEachIndexed { index, value ->
-            val left = index * slot + (slot - barWidth) / 2f
+            val slotIndex = if (rtl) values.lastIndex - index else index
+            val left = slotIndex * slot + (slot - barWidth) / 2f
             val height = if (value > 0f) (value / max * size.height).coerceAtLeast(stub * 2f) else stub
+            val color = when {
+                value <= 0f -> emptyColor
+                index == values.lastIndex -> todayColor
+                else -> barColor
+            }
             drawRoundRect(
-                color = if (value > 0f) barColor else emptyColor,
+                color = color,
                 topLeft = Offset(left, size.height - height),
                 size = Size(barWidth, height),
                 cornerRadius = radius,
@@ -326,66 +313,64 @@ private fun BarChart(
 }
 
 @Composable
-private fun BookStatsCard(book: BookStats) {
-    Card(
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+private fun BookStatsCard(book: BookStats, onClick: () -> Unit) {
+    AppCard(
         modifier = Modifier.fillMaxWidth(),
+        onClick = onClick,
+        onClickLabel = stringResource(R.string.stats_open_book),
     ) {
         Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.padding(MaterialTheme.spacing.lg),
+            verticalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.md),
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = book.title,
-                    style = MaterialTheme.typography.titleSmall,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
+            Text(
+                text = book.title,
+                style = MaterialTheme.typography.titleSmall,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+            BookProgress(percent = book.percent)
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.sm),
+                verticalAlignment = Alignment.Top,
+            ) {
+                val labelColor = MaterialTheme.colorScheme.onSurfaceVariant
+                StatTile(
+                    value = formatDuration(book.totalTimeMs),
+                    label = stringResource(R.string.stats_total_time),
+                    compact = true,
+                    labelColor = labelColor,
                     modifier = Modifier.weight(1f),
                 )
-                Text(
-                    text = stringResource(R.string.library_percent, (book.percent * 100).roundToInt()),
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.padding(start = 8.dp),
+                StatTile(
+                    value = formatNumber(book.sessionCount),
+                    label = stringResource(R.string.stats_sessions),
+                    compact = true,
+                    labelColor = labelColor,
+                    modifier = Modifier.weight(1f),
+                )
+                StatTile(
+                    value = formatDuration(book.avgSessionMs),
+                    label = stringResource(R.string.stats_avg_session),
+                    compact = true,
+                    labelColor = labelColor,
+                    modifier = Modifier.weight(1f),
+                )
+                StatTile(
+                    value = formatNumber(book.pagesRead),
+                    label = stringResource(R.string.stats_metric_pages),
+                    compact = true,
+                    labelColor = labelColor,
+                    modifier = Modifier.weight(1f),
                 )
             }
-            LinearProgressIndicator(
-                progress = { book.percent.coerceIn(0f, 1f) },
-                modifier = Modifier.fillMaxWidth(),
-            )
-            Text(
-                text = stringResource(
-                    R.string.stats_book_detail,
-                    formatDuration(book.totalTimeMs),
-                    pluralStringResource(R.plurals.stats_sessions_count, book.sessionCount, book.sessionCount),
-                    formatDuration(book.avgSessionMs),
-                    pluralStringResource(R.plurals.stats_pages_count, book.pagesRead, book.pagesRead),
-                ),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
         }
     }
 }
 
-@Composable
-private fun formatDuration(ms: Long): String {
-    val minutes = ms / 60_000L
-    val hours = minutes / 60L
-    return when {
-        hours > 0L -> stringResource(R.string.duration_hours_minutes, hours, minutes % 60L)
-        minutes > 0L -> stringResource(R.string.duration_minutes, minutes)
-        else -> stringResource(R.string.duration_seconds, ms / 1_000L)
-    }
-}
-
-private fun formatDecimal(value: Float): String =
-    if (value >= 10f || value == value.roundToInt().toFloat()) {
-        value.roundToInt().toString()
-    } else {
-        String.format(Locale.getDefault(), "%.1f", value)
-    }
+private val WideLayout = 480.dp
+private val ChartHeight = 140.dp
+private const val BAR_FILL = 0.6f
 
 @Preview(showBackground = true)
 @Composable
@@ -418,7 +403,9 @@ private fun StatsScreenPreview() {
                 metric = ChartMetric.Time,
             ),
             onBack = {},
+            onOpenBook = {},
             onMetricSelected = {},
+            onRetry = {},
         )
     }
 }
@@ -427,6 +414,6 @@ private fun StatsScreenPreview() {
 @Composable
 private fun StatsScreenEmptyPreview() {
     Reader343Theme {
-        StatsScreen(state = StatsUiState.Empty, onBack = {}, onMetricSelected = {})
+        StatsScreen(state = StatsUiState.Empty, onBack = {}, onOpenBook = {}, onMetricSelected = {}, onRetry = {})
     }
 }

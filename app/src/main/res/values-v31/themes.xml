@@ -2,5 +2,6 @@
     <style name="Theme.Reader343" parent="android:Theme.Material.Light.NoActionBar">
         <item name="android:windowBackground">@color/window_background</item>
         <item name="android:colorBackground">@color/window_background</item>
+        <item name="android:windowSplashScreenBackground">@color/window_background</item>
     </style>
 </resources>

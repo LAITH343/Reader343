@@ -4,40 +4,27 @@ import androidx.compose.material3.Typography
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.sp
+
+private val Base = Typography()
+
+private fun TextStyle.serif(): TextStyle = copy(fontFamily = FontFamily.Serif, fontWeight = FontWeight.SemiBold)
+
+private fun TextStyle.sans(): TextStyle = copy(fontFamily = FontFamily.Default)
 
 val Typography = Typography(
-    headlineSmall = TextStyle(
-        fontFamily = FontFamily.Serif,
-        fontWeight = FontWeight.SemiBold,
-        fontSize = 24.sp,
-        lineHeight = 32.sp,
-    ),
-    titleLarge = TextStyle(
-        fontFamily = FontFamily.Serif,
-        fontWeight = FontWeight.SemiBold,
-        fontSize = 22.sp,
-        lineHeight = 28.sp,
-    ),
-    titleMedium = TextStyle(
-        fontFamily = FontFamily.Default,
-        fontWeight = FontWeight.Medium,
-        fontSize = 16.sp,
-        lineHeight = 24.sp,
-        letterSpacing = 0.15.sp,
-    ),
-    bodyLarge = TextStyle(
-        fontFamily = FontFamily.Default,
-        fontWeight = FontWeight.Normal,
-        fontSize = 16.sp,
-        lineHeight = 24.sp,
-        letterSpacing = 0.5.sp,
-    ),
-    labelSmall = TextStyle(
-        fontFamily = FontFamily.Default,
-        fontWeight = FontWeight.Medium,
-        fontSize = 11.sp,
-        lineHeight = 16.sp,
-        letterSpacing = 0.5.sp,
-    ),
+    displayLarge = Base.displayLarge.serif(),
+    displayMedium = Base.displayMedium.serif(),
+    displaySmall = Base.displaySmall.serif(),
+    headlineLarge = Base.headlineLarge.serif(),
+    headlineMedium = Base.headlineMedium.serif(),
+    headlineSmall = Base.headlineSmall.serif(),
+    titleLarge = Base.titleLarge.serif(),
+    titleMedium = Base.titleMedium.sans(),
+    titleSmall = Base.titleSmall.sans(),
+    bodyLarge = Base.bodyLarge.sans(),
+    bodyMedium = Base.bodyMedium.sans(),
+    bodySmall = Base.bodySmall.sans(),
+    labelLarge = Base.labelLarge.sans(),
+    labelMedium = Base.labelMedium.sans(),
+    labelSmall = Base.labelSmall.sans(),
 )

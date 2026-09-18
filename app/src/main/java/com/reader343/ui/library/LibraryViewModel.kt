@@ -6,12 +6,16 @@ import androidx.lifecycle.viewModelScope
 import com.reader343.data.repo.LibraryRepository
 import com.reader343.domain.BookWithProgress
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
@@ -21,6 +25,7 @@ import javax.inject.Inject
 sealed interface LibraryUiState {
     data object Loading : LibraryUiState
     data object Empty : LibraryUiState
+    data object Error : LibraryUiState
     data class Content(val books: List<BookWithProgress>) : LibraryUiState
 }
 
@@ -28,13 +33,23 @@ sealed interface LibraryEvent {
     data object ImportFailed : LibraryEvent
 }
 
+@OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
 class LibraryViewModel @Inject constructor(
     private val repository: LibraryRepository,
 ) : ViewModel() {
 
-    val uiState: StateFlow<LibraryUiState> = repository.observeBooks()
-        .map { books -> if (books.isEmpty()) LibraryUiState.Empty else LibraryUiState.Content(books) }
+    private val reload = MutableStateFlow(0)
+
+    val uiState: StateFlow<LibraryUiState> = reload
+        .flatMapLatest { attempt ->
+            repository.observeBooks()
+                .map<List<BookWithProgress>, LibraryUiState> { books ->
+                    if (books.isEmpty()) LibraryUiState.Empty else LibraryUiState.Content(books)
+                }
+                .onStart { if (attempt > 0) emit(LibraryUiState.Loading) }
+                .catch { emit(LibraryUiState.Error) }
+        }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), LibraryUiState.Loading)
 
     private val pendingImports = MutableStateFlow(0)
@@ -54,6 +69,10 @@ class LibraryViewModel @Inject constructor(
                 pendingImports.update { it - 1 }
             }
         }
+    }
+
+    fun retry() {
+        reload.update { it + 1 }
     }
 
     fun deleteBook(id: Long) {

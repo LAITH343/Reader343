@@ -1,15 +1,40 @@
 package com.reader343.ui.reader
 
 import android.os.Build
+import android.app.Activity
+import android.content.Context
+import android.content.ContextWrapper
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.material3.ripple
+import androidx.compose.material3.Scaffold
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.unit.LayoutDirection
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
+import com.reader343.ui.components.AppTopBar
+import com.reader343.ui.components.BookProgress
+import com.reader343.ui.components.ErrorState
+import com.reader343.ui.components.FloatingToolbar
+import com.reader343.ui.components.IconTextButton
+import com.reader343.ui.components.LoadingState
+import com.reader343.ui.components.Motion
+import com.reader343.ui.components.QuoteBlock
+import com.reader343.ui.components.SheetHeader
+import com.reader343.ui.components.StateContent
+import com.reader343.ui.components.TopBarAction
+import com.reader343.ui.components.formatNumber
+import com.reader343.ui.components.reducedMotion
+import com.reader343.ui.theme.spacing
 import androidx.compose.foundation.magnifier
 import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.Velocity
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -32,7 +57,6 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.painter.Painter
-import androidx.compose.ui.text.font.FontStyle
 import com.reader343.domain.Note
 import kotlinx.coroutines.launch
 import androidx.compose.foundation.layout.Spacer
@@ -52,17 +76,12 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.selection.selectable
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -152,6 +171,7 @@ fun ReaderRoute(
     )
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ReaderScreen(
     state: ReaderUiState,
@@ -171,33 +191,50 @@ fun ReaderScreen(
     onTap: (Offset) -> Unit,
     loadPage: suspend (page: Int, viewport: IntSize) -> ImageBitmap?,
     modifier: Modifier = Modifier,
+    pageColor: Color = Color.White,
 ) {
+    val chromeVisible = (state as? ReaderUiState.Ready)?.chromeVisible ?: true
+    SystemBarsVisibility(visible = chromeVisible)
     Box(
         modifier = modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.surfaceContainerHighest),
     ) {
         when (state) {
-            ReaderUiState.Loading -> CircularProgressIndicator(Modifier.align(Alignment.Center))
-            ReaderUiState.Error -> ReaderError(onBack = onBack, modifier = Modifier.align(Alignment.Center))
-            is ReaderUiState.Ready -> {
-                ReaderPager(
-                    state = state,
-                    zoom = zoom,
-                    detail = detail,
-                    markup = markup,
-                    markupActions = markupActions,
-                    notes = notes,
-                    noteActions = noteActions,
-                    onPageSettled = onPageSettled,
-                    onPageRequestHandled = onPageRequestHandled,
-                    onZoomGestureStart = onZoomGestureStart,
-                    onTransform = onTransform,
-                    onZoomGestureEnd = onZoomGestureEnd,
-                    onDoubleTap = onDoubleTap,
-                    onTap = onTap,
-                    loadPage = loadPage,
+            ReaderUiState.Loading -> LoadingState()
+            ReaderUiState.Error -> Scaffold(
+                topBar = { AppTopBar(title = stringResource(R.string.reader_title), onBack = onBack) },
+            ) { padding ->
+                ErrorState(
+                    message = stringResource(R.string.reader_open_failed),
+                    actionLabel = stringResource(R.string.action_back),
+                    onAction = onBack,
+                    modifier = Modifier.padding(padding),
                 )
+            }
+            is ReaderUiState.Ready -> {
+                val uiDirection = LocalLayoutDirection.current
+                CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+                    ReaderPager(
+                        state = state,
+                        zoom = zoom,
+                        detail = detail,
+                        markup = markup,
+                        markupActions = markupActions,
+                        notes = notes,
+                        noteActions = noteActions,
+                        uiDirection = uiDirection,
+                        pageColor = pageColor,
+                        onPageSettled = onPageSettled,
+                        onPageRequestHandled = onPageRequestHandled,
+                        onZoomGestureStart = onZoomGestureStart,
+                        onTransform = onTransform,
+                        onZoomGestureEnd = onZoomGestureEnd,
+                        onDoubleTap = onDoubleTap,
+                        onTap = onTap,
+                        loadPage = loadPage,
+                    )
+                }
                 ReaderTopBar(
                     visible = state.chromeVisible,
                     title = state.title,
@@ -213,7 +250,7 @@ fun ReaderScreen(
                     modifier = Modifier.align(Alignment.BottomCenter),
                 )
                 notes.editor?.let { NoteSheet(editor = it, actions = noteActions) }
-                if (notes.listVisible) NotesListSheet(notes = notes.all, actions = noteActions)
+                if (notes.listVisible) NotesListSheet(notes = notes, actions = noteActions)
             }
         }
     }
@@ -228,6 +265,8 @@ private fun ReaderPager(
     markupActions: MarkupActions,
     notes: NotesUiState,
     noteActions: NoteActions,
+    uiDirection: LayoutDirection,
+    pageColor: Color,
     onPageSettled: (Int) -> Unit,
     onPageRequestHandled: () -> Unit,
     onZoomGestureStart: () -> Unit,
@@ -273,6 +312,8 @@ private fun ReaderPager(
             noteAnchor = notes.editor?.takeIf { active && it.page == index }?.anchor?.rect,
             activeHighlightHasNote = markup.activeHighlight?.let { notes.forHighlight(it.id) } != null,
             noteActions = noteActions,
+            uiDirection = uiDirection,
+            pageColor = pageColor,
             onZoomGestureStart = onZoomGestureStart,
             onTransform = onTransform,
             onZoomGestureEnd = onZoomGestureEnd,
@@ -299,6 +340,8 @@ private fun PdfPage(
     noteAnchor: NormRect?,
     activeHighlightHasNote: Boolean,
     noteActions: NoteActions,
+    uiDirection: LayoutDirection,
+    pageColor: Color,
     onZoomGestureStart: () -> Unit,
     onTransform: (Offset, Offset, Float) -> Unit,
     onZoomGestureEnd: (Offset, Velocity) -> Unit,
@@ -396,7 +439,7 @@ private fun PdfPage(
                 }
                 .drawBehind {
                     val area = layout.page
-                    drawRect(Color.White, area.topLeft, area.size)
+                    drawRect(pageColor, area.topLeft, area.size)
                     bitmap?.let {
                         drawImage(
                             image = it,
@@ -430,40 +473,38 @@ private fun PdfPage(
                     selection?.let { drawSelection(it, layout, accent, handleRadius / zoom.scale, markStroke / zoom.scale) }
                 },
         )
-        if (selection != null && loupe == null) {
-            SelectionPalette(
-                selectedColor = selection.color,
-                canConfirm = selection.canConfirm,
-                onColorSelected = markupActions::onColorSelected,
-                onConfirm = markupActions::onConfirmHighlight,
-                onAddNote = noteActions::onAddNoteFromSelection,
-                modifier = Modifier.floatNear(
-                    anchor = screenBounds(selection.bounds, layout, zoom, if (selection.region) 0f else handleRadius * 2f),
-                    gap = floatGap,
-                    margin = floatMargin,
-                ),
-            )
-        } else if (selection == null && activeHighlight != null) {
-            val bounds = activeHighlight.rects.reduceOrNull(NormRect::union)
-            if (bounds != null) {
-                HighlightMenu(
-                    hasNote = activeHighlightHasNote,
-                    onNote = noteActions::onAddNoteFromHighlight,
-                    onDelete = markupActions::onDeleteHighlight,
+        CompositionLocalProvider(LocalLayoutDirection provides uiDirection) {
+            if (selection != null && loupe == null) {
+                SelectionPalette(
+                    selectedColor = selection.color,
+                    canConfirm = selection.canConfirm,
+                    onColorSelected = markupActions::onColorSelected,
+                    onConfirm = markupActions::onConfirmHighlight,
+                    onAddNote = noteActions::onAddNoteFromSelection,
                     modifier = Modifier.floatNear(
-                        anchor = screenBounds(bounds, layout, zoom, 0f),
+                        anchor = screenBounds(selection.bounds, layout, zoom, if (selection.region) 0f else handleRadius * 2f),
                         gap = floatGap,
                         margin = floatMargin,
                     ),
                 )
+            } else if (selection == null && activeHighlight != null) {
+                val bounds = activeHighlight.rects.reduceOrNull(NormRect::union)
+                if (bounds != null) {
+                    HighlightMenu(
+                        hasNote = activeHighlightHasNote,
+                        onNote = noteActions::onAddNoteFromHighlight,
+                        onDelete = markupActions::onDeleteHighlight,
+                        modifier = Modifier.floatNear(
+                            anchor = screenBounds(bounds, layout, zoom, 0f),
+                            gap = floatGap,
+                            margin = floatMargin,
+                        ),
+                    )
+                }
             }
         }
         if (bitmap == null && viewport != IntSize.Zero) {
-            CircularProgressIndicator(
-                modifier = Modifier
-                    .align(Alignment.Center)
-                    .semantics { contentDescription = loadingDescription },
-            )
+            LoadingState(description = loadingDescription)
         }
     }
 }
@@ -714,52 +755,73 @@ private fun SelectionPalette(
     onAddNote: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Surface(
+    FloatingToolbar(
         modifier = modifier,
-        shape = RoundedCornerShape(24.dp),
-        tonalElevation = 6.dp,
-        shadowElevation = 6.dp,
+        contentPadding = PaddingValues(start = MaterialTheme.spacing.xs, end = MaterialTheme.spacing.xs),
     ) {
-        Row(
-            modifier = Modifier.padding(start = 12.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
+        Row(Modifier.selectableGroup()) {
             HighlightColor.entries.forEach { color ->
-                val isSelected = color.argb == selectedColor
-                val label = stringResource(color.label)
-                Box(
-                    modifier = Modifier
-                        .size(28.dp)
-                        .clip(CircleShape)
-                        .background(Color(color.argb))
-                        .border(
-                            width = if (isSelected) 3.dp else 1.dp,
-                            color = if (isSelected) {
-                                MaterialTheme.colorScheme.primary
-                            } else {
-                                MaterialTheme.colorScheme.outlineVariant
-                            },
-                            shape = CircleShape,
-                        )
-                        .selectable(
-                            selected = isSelected,
-                            role = Role.RadioButton,
-                            onClick = { onColorSelected(color.argb) },
-                        )
-                        .semantics { contentDescription = label },
+                ColorSwatch(
+                    color = Color(color.argb),
+                    label = stringResource(color.label),
+                    selected = color.argb == selectedColor,
+                    onClick = { onColorSelected(color.argb) },
                 )
             }
-            IconButton(onClick = onAddNote, enabled = canConfirm) {
-                Icon(
-                    painter = painterResource(R.drawable.ic_note_add),
-                    contentDescription = stringResource(R.string.note_add),
-                )
-            }
-            IconButton(onClick = onConfirm, enabled = canConfirm) {
+        }
+        IconButton(onClick = onAddNote, enabled = canConfirm) {
+            Icon(
+                painter = painterResource(R.drawable.ic_note_add),
+                contentDescription = stringResource(R.string.note_add),
+            )
+        }
+        IconButton(onClick = onConfirm, enabled = canConfirm) {
+            Icon(
+                painter = painterResource(R.drawable.ic_check),
+                contentDescription = stringResource(R.string.highlight_confirm),
+            )
+        }
+    }
+}
+
+@Composable
+private fun ColorSwatch(
+    color: Color,
+    label: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+) {
+    Box(
+        modifier = Modifier
+            .size(SwatchTouchSize)
+            .selectable(
+                selected = selected,
+                role = Role.RadioButton,
+                interactionSource = null,
+                indication = ripple(bounded = false, radius = SwatchTouchSize / 2),
+                onClick = onClick,
+            )
+            .semantics { contentDescription = label },
+        contentAlignment = Alignment.Center,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(SwatchSize)
+                .clip(CircleShape)
+                .background(color)
+                .border(
+                    width = if (selected) SwatchSelectedBorder else SwatchBorder,
+                    color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
+                    shape = CircleShape,
+                ),
+            contentAlignment = Alignment.Center,
+        ) {
+            if (selected) {
                 Icon(
                     painter = painterResource(R.drawable.ic_check),
-                    contentDescription = stringResource(R.string.highlight_confirm),
+                    contentDescription = null,
+                    tint = SwatchCheckColor,
+                    modifier = Modifier.size(SwatchCheckSize),
                 )
             }
         }
@@ -773,32 +835,18 @@ private fun HighlightMenu(
     onDelete: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Surface(
-        modifier = modifier,
-        shape = RoundedCornerShape(24.dp),
-        tonalElevation = 6.dp,
-        shadowElevation = 6.dp,
-    ) {
-        Row(modifier = Modifier.padding(horizontal = 4.dp)) {
-            TextButton(onClick = onNote) {
-                Icon(
-                    painter = painterResource(if (hasNote) R.drawable.ic_note else R.drawable.ic_note_add),
-                    contentDescription = null,
-                    modifier = Modifier.size(18.dp),
-                )
-                Spacer(Modifier.width(8.dp))
-                Text(stringResource(if (hasNote) R.string.note_view else R.string.note_add))
-            }
-            TextButton(onClick = onDelete) {
-                Icon(
-                    painter = painterResource(R.drawable.ic_delete),
-                    contentDescription = null,
-                    modifier = Modifier.size(18.dp),
-                )
-                Spacer(Modifier.width(8.dp))
-                Text(stringResource(R.string.highlight_delete))
-            }
-        }
+    FloatingToolbar(modifier = modifier) {
+        IconTextButton(
+            icon = if (hasNote) R.drawable.ic_note else R.drawable.ic_note_add,
+            text = stringResource(if (hasNote) R.string.note_view else R.string.note_add),
+            onClick = onNote,
+        )
+        IconTextButton(
+            icon = R.drawable.ic_delete,
+            text = stringResource(R.string.highlight_delete),
+            onClick = onDelete,
+            destructive = true,
+        )
     }
 }
 
@@ -811,6 +859,7 @@ private fun NoteSheet(editor: NoteEditor, actions: NoteActions) {
     var body by rememberSaveable(editor.key) { mutableStateOf(editor.body) }
     val isNew = editor.noteId == null
     val canSave = body.isNotBlank() && body.trim() != editor.body
+    val spacing = MaterialTheme.spacing
 
     fun hideThen(action: () -> Unit) {
         scope.launch { sheetState.hide() }.invokeOnCompletion { action() }
@@ -821,43 +870,19 @@ private fun NoteSheet(editor: NoteEditor, actions: NoteActions) {
     }
 
     ModalBottomSheet(onDismissRequest = actions::onDismissNote, sheetState = sheetState) {
+        SheetHeader(
+            title = stringResource(if (isNew) R.string.note_new else R.string.note_title),
+            trailing = stringResource(R.string.note_page, editor.page + 1),
+        )
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .imePadding()
-                .padding(start = 24.dp, end = 24.dp, bottom = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+                .padding(start = spacing.xl, end = spacing.xl, top = spacing.sm, bottom = spacing.lg),
+            verticalArrangement = Arrangement.spacedBy(spacing.md),
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text = stringResource(if (isNew) R.string.note_new else R.string.note_title),
-                    style = MaterialTheme.typography.titleLarge,
-                )
-                Text(
-                    text = stringResource(R.string.note_page, editor.page + 1),
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
             editor.anchor.snippet?.let { snippet ->
-                Surface(
-                    color = MaterialTheme.colorScheme.surfaceContainerHigh,
-                    shape = RoundedCornerShape(8.dp),
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Text(
-                        text = snippet,
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontStyle = FontStyle.Italic,
-                        maxLines = 4,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.padding(12.dp),
-                    )
-                }
+                QuoteBlock(text = snippet, maxLines = 4, modifier = Modifier.fillMaxWidth())
             }
             OutlinedTextField(
                 value = body,
@@ -865,24 +890,21 @@ private fun NoteSheet(editor: NoteEditor, actions: NoteActions) {
                 placeholder = { Text(stringResource(R.string.note_placeholder)) },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .heightIn(min = 120.dp)
+                    .heightIn(min = NoteFieldMinHeight)
                     .focusRequester(focusRequester),
             )
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                horizontalArrangement = Arrangement.spacedBy(spacing.sm),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 if (!isNew) {
-                    TextButton(onClick = { hideThen(actions::onDeleteNote) }) {
-                        Icon(
-                            painter = painterResource(R.drawable.ic_delete),
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp),
-                        )
-                        Spacer(Modifier.width(8.dp))
-                        Text(stringResource(R.string.note_delete))
-                    }
+                    IconTextButton(
+                        icon = R.drawable.ic_delete,
+                        text = stringResource(R.string.note_delete),
+                        onClick = { hideThen(actions::onDeleteNote) },
+                        destructive = true,
+                    )
                 }
                 Spacer(Modifier.weight(1f))
                 TextButton(onClick = { hideThen(actions::onDismissNote) }) {
@@ -898,37 +920,26 @@ private fun NoteSheet(editor: NoteEditor, actions: NoteActions) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun NotesListSheet(notes: List<Note>, actions: NoteActions) {
+private fun NotesListSheet(notes: NotesUiState, actions: NoteActions) {
     val sheetState = rememberModalBottomSheetState()
     val scope = rememberCoroutineScope()
+    val all = notes.all
 
     ModalBottomSheet(onDismissRequest = actions::onHideNotes, sheetState = sheetState) {
-        Text(
-            text = stringResource(R.string.notes_title),
-            style = MaterialTheme.typography.titleLarge,
-            modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
-        )
-        if (notes.isEmpty()) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 24.dp, vertical = 32.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+        SheetHeader(title = stringResource(R.string.notes_title))
+        when {
+            !notes.loaded -> LoadingState(Modifier.heightIn(max = SheetStateHeight))
+            all.isEmpty() -> StateContent(
+                icon = R.drawable.ic_notes,
+                title = stringResource(R.string.notes_empty),
+                body = stringResource(R.string.notes_empty_hint),
+                modifier = Modifier.align(Alignment.CenterHorizontally),
+            )
+            else -> LazyColumn(
+                modifier = Modifier.fillMaxWidth(),
+                contentPadding = PaddingValues(bottom = MaterialTheme.spacing.lg),
             ) {
-                Text(
-                    text = stringResource(R.string.notes_empty),
-                    style = MaterialTheme.typography.titleMedium,
-                )
-                Text(
-                    text = stringResource(R.string.notes_empty_hint),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        } else {
-            LazyColumn(modifier = Modifier.fillMaxWidth()) {
-                items(notes, key = { it.id }) { note ->
+                items(all, key = { it.id }) { note ->
                     ListItem(
                         overlineContent = { Text(stringResource(R.string.note_page, note.page + 1)) },
                         headlineContent = {
@@ -936,18 +947,21 @@ private fun NotesListSheet(notes: List<Note>, actions: NoteActions) {
                         },
                         supportingContent = note.anchor.snippet?.let { snippet ->
                             {
-                                Text(
+                                QuoteBlock(
                                     text = snippet,
-                                    fontStyle = FontStyle.Italic,
                                     maxLines = 2,
-                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.padding(top = MaterialTheme.spacing.xs),
                                 )
                             }
                         },
                         colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                        modifier = Modifier.clickable {
-                            scope.launch { sheetState.hide() }.invokeOnCompletion { actions.onJumpToNote(note.id) }
-                        },
+                        modifier = Modifier
+                            .padding(horizontal = MaterialTheme.spacing.sm)
+                            .clip(MaterialTheme.shapes.medium)
+                            .clickable(onClickLabel = stringResource(R.string.note_open_page, note.page + 1)) {
+                                scope.launch { sheetState.hide() }
+                                    .invokeOnCompletion { actions.onJumpToNote(note.id) }
+                            },
                     )
                 }
             }
@@ -971,6 +985,7 @@ private val LoupeCornerRadius = 32.dp
 private val LoupeLift = 80.dp
 private const val LOUPE_ZOOM = 2f
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ReaderTopBar(
     visible: Boolean,
@@ -979,42 +994,26 @@ private fun ReaderTopBar(
     onShowNotes: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val reduced = reducedMotion()
     AnimatedVisibility(
         visible = visible,
         modifier = modifier,
-        enter = fadeIn() + slideInVertically { -it },
-        exit = fadeOut() + slideOutVertically { -it },
+        enter = Motion.slideFromEdge(reduced, fromTop = true),
+        exit = Motion.slideToEdge(reduced, toTop = true),
     ) {
-        Surface(tonalElevation = 3.dp, shadowElevation = 3.dp) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .statusBarsPadding()
-                    .padding(horizontal = 4.dp, vertical = 4.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                IconButton(onClick = onBack) {
-                    Icon(
-                        painter = painterResource(R.drawable.ic_arrow_back),
-                        contentDescription = stringResource(R.string.action_back),
-                    )
-                }
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.titleMedium,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier
-                        .weight(1f)
-                        .padding(end = 8.dp),
-                )
-                IconButton(onClick = onShowNotes) {
-                    Icon(
-                        painter = painterResource(R.drawable.ic_notes),
+        Surface(color = MaterialTheme.colorScheme.surfaceContainer, shadowElevation = ChromeElevation) {
+            AppTopBar(
+                title = title,
+                onBack = onBack,
+                containerColor = MaterialTheme.colorScheme.surfaceContainer,
+                actions = {
+                    TopBarAction(
+                        icon = R.drawable.ic_notes,
                         contentDescription = stringResource(R.string.notes_title),
+                        onClick = onShowNotes,
                     )
-                }
-            }
+                },
+            )
         }
     }
 }
@@ -1027,58 +1026,65 @@ private fun ReaderBottomBar(
     percent: Float,
     modifier: Modifier = Modifier,
 ) {
+    val reduced = reducedMotion()
     AnimatedVisibility(
         visible = visible,
         modifier = modifier,
-        enter = fadeIn() + slideInVertically { it },
-        exit = fadeOut() + slideOutVertically { it },
+        enter = Motion.slideFromEdge(reduced, fromTop = false),
+        exit = Motion.slideToEdge(reduced, toTop = false),
     ) {
-        Surface(tonalElevation = 3.dp, shadowElevation = 3.dp) {
+        Surface(color = MaterialTheme.colorScheme.surfaceContainer, shadowElevation = ChromeElevation) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .navigationBarsPadding()
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+                    .padding(horizontal = MaterialTheme.spacing.lg, vertical = MaterialTheme.spacing.md),
+                verticalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.sm),
             ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                ) {
-                    Text(
-                        text = stringResource(R.string.reader_page_indicator, page + 1, pageCount),
-                        style = MaterialTheme.typography.labelLarge,
-                    )
-                    Text(
-                        text = stringResource(R.string.library_percent, (percent * 100).roundToInt()),
-                        style = MaterialTheme.typography.labelLarge,
-                    )
-                }
-                LinearProgressIndicator(
-                    progress = { percent },
-                    modifier = Modifier.fillMaxWidth(),
+                Text(
+                    text = stringResource(R.string.reader_page_indicator, formatNumber(page + 1), formatNumber(pageCount)),
+                    style = MaterialTheme.typography.labelLarge,
                 )
+                BookProgress(percent = percent)
             }
         }
     }
 }
 
 @Composable
-private fun ReaderError(onBack: () -> Unit, modifier: Modifier = Modifier) {
-    Column(
-        modifier = modifier.padding(24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        Text(
-            text = stringResource(R.string.reader_open_failed),
-            style = MaterialTheme.typography.titleMedium,
-        )
-        TextButton(onClick = onBack) {
-            Text(stringResource(R.string.action_back))
+private fun SystemBarsVisibility(visible: Boolean) {
+    val view = LocalView.current
+    if (view.isInEditMode) return
+    val window = remember(view) { view.context.findActivity()?.window } ?: return
+    val controller = remember(window, view) { WindowCompat.getInsetsController(window, view) }
+    LaunchedEffect(controller, visible) {
+        controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        if (visible) {
+            controller.show(WindowInsetsCompat.Type.systemBars())
+        } else {
+            controller.hide(WindowInsetsCompat.Type.systemBars())
         }
     }
+    DisposableEffect(controller) {
+        onDispose { controller.show(WindowInsetsCompat.Type.systemBars()) }
+    }
 }
+
+private tailrec fun Context.findActivity(): Activity? = when (this) {
+    is Activity -> this
+    is ContextWrapper -> baseContext.findActivity()
+    else -> null
+}
+
+private val ChromeElevation = 3.dp
+private val SwatchTouchSize = 48.dp
+private val SwatchSize = 30.dp
+private val SwatchBorder = 1.dp
+private val SwatchSelectedBorder = 2.dp
+private val SwatchCheckSize = 18.dp
+private val SwatchCheckColor = Color(0xDE000000)
+private val NoteFieldMinHeight = 120.dp
+private val SheetStateHeight = 160.dp
 
 @Preview(showBackground = true)
 @Composable

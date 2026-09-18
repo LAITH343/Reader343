@@ -4,13 +4,15 @@
     <string name="library_empty">Your library is empty</string>
     <string name="library_empty_hint">Import a PDF to start tracking your reading.</string>
     <string name="library_import">Import PDF</string>
+    <string name="library_importing">Importing PDF</string>
     <string name="library_import_failed">Couldn\'t import this PDF</string>
+    <string name="library_load_failed">Couldn\'t load your library</string>
     <string name="library_not_started">Not started</string>
-    <string name="library_percent">%1$d%%</string>
-    <string name="library_progress_detail">%1$s · %2$s</string>
+    <string name="library_book_meta">%1$s · %2$s</string>
+    <string name="library_open_book">Open book</string>
     <plurals name="library_pages">
-        <item quantity="one">%d page</item>
-        <item quantity="other">%d pages</item>
+        <item quantity="one">%1$s page</item>
+        <item quantity="other">%1$s pages</item>
     </plurals>
     <string name="library_cover_description">Cover of %1$s</string>
     <string name="delete_book_title">Remove book?</string>
@@ -19,7 +21,7 @@
     <string name="action_cancel">Cancel</string>
     <string name="reader_title">Reader</string>
     <string name="reader_open_failed">Couldn\'t open this book</string>
-    <string name="reader_page_indicator">%1$d / %2$d</string>
+    <string name="reader_page_indicator">Page %1$s of %2$s</string>
     <string name="reader_page_loading">Loading page %1$d</string>
     <string name="highlight_confirm">Save highlight</string>
     <string name="highlight_delete">Delete highlight</string>
@@ -39,9 +41,13 @@
     <string name="note_add">Add note</string>
     <string name="note_view">View note</string>
     <string name="note_delete">Delete</string>
+    <string name="note_open_page">Go to page %1$d</string>
     <string name="stats_title">Stats</string>
     <string name="stats_empty">No reading yet</string>
     <string name="stats_empty_hint">Open a book to start tracking your reading time and streak.</string>
+    <string name="stats_load_failed">Couldn\'t load your stats</string>
+    <string name="stats_go_library">Go to library</string>
+    <string name="stats_open_book">Open book</string>
     <string name="stats_streak">Streak</string>
     <string name="stats_total_time">Total time</string>
     <string name="stats_in_progress">In progress</string>
@@ -52,27 +58,27 @@
     <string name="stats_metric_time">Time</string>
     <string name="stats_metric_pages">Pages</string>
     <string name="stats_chart_time">%1$s read</string>
+    <string name="stats_chart_day">%1$s: %2$s</string>
     <string name="stats_books">Books</string>
-    <string name="stats_book_detail">%1$s · %2$s · avg %3$s · %4$s</string>
     <plurals name="stats_days">
-        <item quantity="one">%d day</item>
-        <item quantity="other">%d days</item>
+        <item quantity="one">%1$s day</item>
+        <item quantity="other">%1$s days</item>
     </plurals>
     <plurals name="stats_chart_pages">
-        <item quantity="one">%d page read</item>
-        <item quantity="other">%d pages read</item>
+        <item quantity="one">%1$s page read</item>
+        <item quantity="other">%1$s pages read</item>
     </plurals>
-    <plurals name="stats_sessions_count">
-        <item quantity="one">%d session</item>
-        <item quantity="other">%d sessions</item>
-    </plurals>
-    <plurals name="stats_pages_count">
-        <item quantity="one">%d page</item>
-        <item quantity="other">%d pages</item>
+    <plurals name="stats_pages_value">
+        <item quantity="one">%1$s page</item>
+        <item quantity="other">%1$s pages</item>
     </plurals>
     <string name="duration_hours_minutes">%1$dh %2$dm</string>
     <string name="duration_minutes">%1$dm</string>
     <string name="duration_seconds">%1$ds</string>
     <string name="action_stats">Stats</string>
     <string name="action_back">Back</string>
+    <string name="action_retry">Try again</string>
+    <string name="action_more">More options</string>
+    <string name="state_loading">Loading</string>
+    <string name="state_error_hint">Something went wrong while reading data on this device.</string>
 </resources>

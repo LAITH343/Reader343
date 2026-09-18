@@ -1,41 +1,33 @@
 package com.reader343.ui.library
 
-import android.text.format.DateUtils
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.background
-import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.rememberTopAppBarState
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -43,28 +35,30 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.disabled
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import coil3.compose.AsyncImage
 import com.reader343.R
 import com.reader343.domain.BookWithProgress
+import com.reader343.ui.components.AppTopBar
+import com.reader343.ui.components.BookCard
+import com.reader343.ui.components.DestructiveTextButton
+import com.reader343.ui.components.EmptyState
+import com.reader343.ui.components.ErrorState
+import com.reader343.ui.components.LoadingState
+import com.reader343.ui.components.TopBarAction
 import com.reader343.ui.theme.Reader343Theme
-import java.io.File
-import kotlin.math.roundToInt
+import com.reader343.ui.theme.spacing
 
 private const val PDF_MIME = "application/pdf"
 
@@ -100,6 +94,7 @@ fun LibraryRoute(
         onOpenBook = onOpenBook,
         onDeleteBook = viewModel::deleteBook,
         onOpenStats = onOpenStats,
+        onRetry = viewModel::retry,
     )
 }
 
@@ -113,19 +108,24 @@ fun LibraryScreen(
     onOpenBook: (Long) -> Unit,
     onDeleteBook: (Long) -> Unit,
     onOpenStats: () -> Unit,
+    onRetry: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var pendingDeleteId by rememberSaveable { mutableStateOf<Long?>(null) }
+    val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior(rememberTopAppBarState())
 
     Scaffold(
-        modifier = modifier,
+        modifier = modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
-            TopAppBar(
-                title = { Text(stringResource(R.string.library_title)) },
+            AppTopBar(
+                title = stringResource(R.string.library_title),
+                scrollBehavior = scrollBehavior,
                 actions = {
-                    TextButton(onClick = onOpenStats) {
-                        Text(stringResource(R.string.action_stats))
-                    }
+                    TopBarAction(
+                        icon = R.drawable.ic_bar_chart,
+                        contentDescription = stringResource(R.string.action_stats),
+                        onClick = onOpenStats,
+                    )
                 },
             )
         },
@@ -142,16 +142,22 @@ fun LibraryScreen(
                 .padding(padding),
         ) {
             when (state) {
-                LibraryUiState.Loading -> CircularProgressIndicator(Modifier.align(Alignment.Center))
-                LibraryUiState.Empty -> EmptyLibrary(
-                    importing = importing,
-                    onImport = onImport,
-                    modifier = Modifier.align(Alignment.Center),
+                LibraryUiState.Loading -> LoadingState()
+                LibraryUiState.Error -> ErrorState(
+                    message = stringResource(R.string.library_load_failed),
+                    actionLabel = stringResource(R.string.action_retry),
+                    onAction = onRetry,
+                )
+                LibraryUiState.Empty -> EmptyState(
+                    icon = R.drawable.ic_library,
+                    title = stringResource(R.string.library_empty),
+                    body = stringResource(R.string.library_empty_hint),
+                    action = { ImportButton(importing = importing, onClick = onImport) },
                 )
                 is LibraryUiState.Content -> BookGrid(
                     books = state.books,
                     onOpenBook = onOpenBook,
-                    onLongPressBook = { pendingDeleteId = it },
+                    onRemoveBook = { pendingDeleteId = it },
                 )
             }
         }
@@ -172,51 +178,47 @@ fun LibraryScreen(
 
 @Composable
 private fun ImportFab(importing: Boolean, onClick: () -> Unit) {
+    val importingLabel = stringResource(R.string.library_importing)
     ExtendedFloatingActionButton(
         onClick = { if (!importing) onClick() },
-        icon = {
-            if (importing) {
-                CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
-            } else {
-                Icon(painterResource(R.drawable.ic_add), contentDescription = null)
-            }
-        },
+        modifier = Modifier.semantics { if (importing) disabled() },
+        icon = { ImportIcon(importing = importing, description = importingLabel) },
         text = { Text(stringResource(R.string.library_import)) },
     )
 }
 
 @Composable
-private fun EmptyLibrary(
-    importing: Boolean,
-    onImport: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    Column(
-        modifier = modifier.padding(32.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+private fun ImportButton(importing: Boolean, onClick: () -> Unit) {
+    Button(
+        onClick = onClick,
+        enabled = !importing,
+        contentPadding = ButtonDefaults.ButtonWithIconContentPadding,
     ) {
-        Text(
-            text = stringResource(R.string.library_empty),
-            style = MaterialTheme.typography.titleLarge,
-            textAlign = TextAlign.Center,
+        ImportIcon(
+            importing = importing,
+            description = stringResource(R.string.library_importing),
+            size = ButtonDefaults.IconSize,
         )
-        Text(
-            text = stringResource(R.string.library_empty_hint),
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center,
+        Spacer(Modifier.width(ButtonDefaults.IconSpacing))
+        Text(stringResource(R.string.library_import))
+    }
+}
+
+@Composable
+private fun ImportIcon(importing: Boolean, description: String, size: Dp = FabIconSize) {
+    if (importing) {
+        CircularProgressIndicator(
+            modifier = Modifier
+                .size(size)
+                .semantics { contentDescription = description },
+            strokeWidth = 2.dp,
         )
-        Spacer(Modifier.height(8.dp))
-        Button(onClick = onImport, enabled = !importing) {
-            if (importing) {
-                CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
-            } else {
-                Icon(painterResource(R.drawable.ic_add), contentDescription = null)
-            }
-            Spacer(Modifier.size(8.dp))
-            Text(stringResource(R.string.library_import))
-        }
+    } else {
+        Icon(
+            painter = painterResource(R.drawable.ic_add),
+            contentDescription = null,
+            modifier = Modifier.size(size),
+        )
     }
 }
 
@@ -224,118 +226,31 @@ private fun EmptyLibrary(
 private fun BookGrid(
     books: List<BookWithProgress>,
     onOpenBook: (Long) -> Unit,
-    onLongPressBook: (Long) -> Unit,
+    onRemoveBook: (Long) -> Unit,
 ) {
+    val spacing = MaterialTheme.spacing
     LazyVerticalGrid(
-        columns = GridCells.Adaptive(minSize = 150.dp),
-        contentPadding = PaddingValues(start = 16.dp, top = 8.dp, end = 16.dp, bottom = 96.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+        columns = GridCells.Adaptive(minSize = BookMinWidth),
+        contentPadding = PaddingValues(
+            start = spacing.lg,
+            top = spacing.sm,
+            end = spacing.lg,
+            bottom = spacing.fabClearance,
+        ),
+        horizontalArrangement = Arrangement.spacedBy(spacing.md),
+        verticalArrangement = Arrangement.spacedBy(spacing.md),
         modifier = Modifier.fillMaxSize(),
     ) {
         items(books, key = { it.id }) { book ->
             BookCard(
                 book = book,
-                onClick = { onOpenBook(book.id) },
-                onLongClick = { onLongPressBook(book.id) },
+                onOpen = { onOpenBook(book.id) },
+                onRemove = { onRemoveBook(book.id) },
+                modifier = Modifier.animateItem(),
             )
         }
     }
 }
-
-@OptIn(ExperimentalFoundationApi::class)
-@Composable
-private fun BookCard(
-    book: BookWithProgress,
-    onClick: () -> Unit,
-    onLongClick: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val haptics = LocalHapticFeedback.current
-    Card(
-        modifier = modifier
-            .fillMaxWidth()
-            .clip(CardShape)
-            .combinedClickable(
-                onClick = onClick,
-                onLongClick = {
-                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                    onLongClick()
-                },
-            ),
-        shape = CardShape,
-    ) {
-        BookCover(book)
-        Column(
-            modifier = Modifier.padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp),
-        ) {
-            Text(
-                text = book.title,
-                style = MaterialTheme.typography.titleMedium,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-            )
-            LinearProgressIndicator(
-                progress = { book.percent.coerceIn(0f, 1f) },
-                modifier = Modifier.fillMaxWidth(),
-            )
-            Text(
-                text = stringResource(
-                    R.string.library_progress_detail,
-                    stringResource(R.string.library_percent, (book.percent * 100).roundToInt()),
-                    lastReadLabel(book.lastReadAt),
-                ),
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Text(
-                text = pluralStringResource(R.plurals.library_pages, book.pageCount, book.pageCount),
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-    }
-}
-
-@Composable
-private fun BookCover(book: BookWithProgress) {
-    val coverModifier = Modifier
-        .fillMaxWidth()
-        .aspectRatio(COVER_ASPECT)
-        .background(MaterialTheme.colorScheme.surfaceVariant)
-    if (book.coverPath != null) {
-        AsyncImage(
-            model = File(book.coverPath),
-            contentDescription = stringResource(R.string.library_cover_description, book.title),
-            contentScale = ContentScale.Crop,
-            alignment = Alignment.TopCenter,
-            modifier = coverModifier,
-        )
-    } else {
-        Box(coverModifier, contentAlignment = Alignment.Center) {
-            Text(
-                text = book.title.take(1).uppercase(),
-                style = MaterialTheme.typography.headlineSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-    }
-}
-
-@Composable
-private fun lastReadLabel(lastReadAt: Long?): String =
-    if (lastReadAt == null) {
-        stringResource(R.string.library_not_started)
-    } else {
-        DateUtils.getRelativeTimeSpanString(
-            lastReadAt,
-            System.currentTimeMillis(),
-            DateUtils.MINUTE_IN_MILLIS,
-        ).toString()
-    }
 
 @Composable
 private fun DeleteBookDialog(
@@ -345,10 +260,11 @@ private fun DeleteBookDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
+        icon = { Icon(painterResource(R.drawable.ic_delete), contentDescription = null) },
         title = { Text(stringResource(R.string.delete_book_title)) },
         text = { Text(stringResource(R.string.delete_book_message, title)) },
         confirmButton = {
-            TextButton(onClick = onConfirm) { Text(stringResource(R.string.action_delete)) }
+            DestructiveTextButton(text = stringResource(R.string.action_delete), onClick = onConfirm)
         },
         dismissButton = {
             TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) }
@@ -356,8 +272,8 @@ private fun DeleteBookDialog(
     )
 }
 
-private val CardShape = RoundedCornerShape(12.dp)
-private const val COVER_ASPECT = 0.75f
+private val BookMinWidth = 150.dp
+private val FabIconSize = 24.dp
 
 private val PreviewBooks = listOf(
     BookWithProgress(1, "Designing Data-Intensive Applications", null, 611, 120, 0.2f, System.currentTimeMillis() - 3_600_000),
@@ -377,6 +293,7 @@ private fun LibraryContentPreview() {
             onOpenBook = {},
             onDeleteBook = {},
             onOpenStats = {},
+            onRetry = {},
         )
     }
 }
@@ -393,6 +310,7 @@ private fun LibraryEmptyPreview() {
             onOpenBook = {},
             onDeleteBook = {},
             onOpenStats = {},
+            onRetry = {},
         )
     }
 }
