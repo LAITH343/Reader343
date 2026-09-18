@@ -47,6 +47,7 @@ import com.reader343.R
 import com.reader343.domain.BookStats
 import com.reader343.domain.DayStats
 import com.reader343.domain.ReadingStats
+import com.reader343.ui.components.ActivityHeatmap
 import com.reader343.ui.components.AppCard
 import com.reader343.ui.components.AppTopBar
 import com.reader343.ui.components.BookProgress
@@ -59,6 +60,9 @@ import com.reader343.ui.components.StatTile
 import com.reader343.ui.components.formatDate
 import com.reader343.ui.components.formatDecimal
 import com.reader343.ui.components.formatDuration
+import com.reader343.ui.components.formatMinutes
+import com.reader343.ui.components.HeatmapLegend
+import com.reader343.ui.components.HeatmapTooltip
 import com.reader343.ui.components.formatNumber
 import com.reader343.ui.components.formatWeekday
 import com.reader343.ui.theme.Reader343Theme
@@ -125,6 +129,8 @@ fun StatsScreen(
             is StatsUiState.Content -> StatsContent(
                 stats = state.stats,
                 metric = state.metric,
+                activity = state.activity,
+                today = state.today,
                 onMetricSelected = onMetricSelected,
                 onOpenBook = onOpenBook,
                 modifier = contentModifier,
@@ -137,6 +143,8 @@ fun StatsScreen(
 private fun StatsContent(
     stats: ReadingStats,
     metric: ChartMetric,
+    activity: Map<LocalDate, Int>,
+    today: LocalDate,
     onMetricSelected: (ChartMetric) -> Unit,
     onOpenBook: (Long) -> Unit,
     modifier: Modifier = Modifier,
@@ -148,14 +156,11 @@ private fun StatsContent(
         verticalArrangement = Arrangement.spacedBy(spacing.md),
     ) {
         item { OverviewCard(stats) }
+        item { MetricSelector(metric = metric, onMetricSelected = onMetricSelected) }
+        item { SectionHeader(stringResource(R.string.stats_activity)) }
+        item { ActivityCard(activity = activity, today = today, metric = metric) }
         item { SectionHeader(stringResource(R.string.stats_last_days)) }
-        item {
-            ChartCard(
-                days = stats.days,
-                metric = metric,
-                onMetricSelected = onMetricSelected,
-            )
-        }
+        item { ChartCard(days = stats.days, metric = metric) }
         if (stats.books.isNotEmpty()) {
             item { SectionHeader(stringResource(R.string.stats_books)) }
             items(stats.books, key = { it.bookId }) { book ->
@@ -198,10 +203,81 @@ private fun OverviewCard(stats: ReadingStats) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
+private fun MetricSelector(
+    metric: ChartMetric,
+    onMetricSelected: (ChartMetric) -> Unit,
+) {
+    SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+        ChartMetric.entries.forEachIndexed { index, entry ->
+            SegmentedButton(
+                selected = entry == metric,
+                onClick = { onMetricSelected(entry) },
+                shape = SegmentedButtonDefaults.itemShape(index, ChartMetric.entries.size),
+            ) {
+                Text(
+                    stringResource(
+                        if (entry == ChartMetric.Time) R.string.stats_metric_time else R.string.stats_metric_pages,
+                    ),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun metricTotal(metric: ChartMetric, value: Int): String = when (metric) {
+    ChartMetric.Time -> stringResource(R.string.stats_chart_time, formatMinutes(value * MINUTE_MS))
+    ChartMetric.Pages -> pluralStringResource(R.plurals.stats_chart_pages, value, formatNumber(value))
+}
+
+@Composable
+private fun ActivityCard(
+    activity: Map<LocalDate, Int>,
+    today: LocalDate,
+    metric: ChartMetric,
+) {
+    val from = today.minusWeeks(HEATMAP_WEEKS.toLong())
+    val visible = activity.filterKeys { it.isAfter(from) && !it.isAfter(today) }
+    val activeDays = visible.size
+    val summary = stringResource(
+        R.string.stats_activity_summary,
+        pluralStringResource(R.plurals.stats_active_days, activeDays, formatNumber(activeDays)),
+        metricTotal(metric, visible.values.sum()),
+    )
+    AppCard(modifier = Modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier.padding(MaterialTheme.spacing.lg),
+            verticalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.md),
+        ) {
+            Text(
+                text = summary,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            ActivityHeatmap(
+                values = activity,
+                today = today,
+                weeks = HEATMAP_WEEKS,
+                tooltip = { date, value ->
+                    HeatmapTooltip(
+                        title = formatDate(date),
+                        body = if (value > 0) metricTotal(metric, value) else stringResource(R.string.stats_no_reading),
+                    )
+                },
+            )
+            HeatmapLegend(
+                lessLabel = stringResource(R.string.stats_less),
+                moreLabel = stringResource(R.string.stats_more),
+                modifier = Modifier.align(Alignment.End),
+            )
+        }
+    }
+}
+
+@Composable
 private fun ChartCard(
     days: List<DayStats>,
     metric: ChartMetric,
-    onMetricSelected: (ChartMetric) -> Unit,
 ) {
     val values = days.map { if (metric == ChartMetric.Time) it.timeMs.toFloat() else it.pages.toFloat() }
     val summary = when (metric) {
@@ -227,21 +303,6 @@ private fun ChartCard(
             modifier = Modifier.padding(MaterialTheme.spacing.lg),
             verticalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.md),
         ) {
-            SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-                ChartMetric.entries.forEachIndexed { index, entry ->
-                    SegmentedButton(
-                        selected = entry == metric,
-                        onClick = { onMetricSelected(entry) },
-                        shape = SegmentedButtonDefaults.itemShape(index, ChartMetric.entries.size),
-                    ) {
-                        Text(
-                            stringResource(
-                                if (entry == ChartMetric.Time) R.string.stats_metric_time else R.string.stats_metric_pages,
-                            ),
-                        )
-                    }
-                }
-            }
             Text(
                 text = summary,
                 style = MaterialTheme.typography.bodyMedium,
@@ -371,6 +432,8 @@ private fun BookStatsCard(book: BookStats, onClick: () -> Unit) {
 private val WideLayout = 480.dp
 private val ChartHeight = 140.dp
 private const val BAR_FILL = 0.6f
+private const val HEATMAP_WEEKS = 26
+private const val MINUTE_MS = 60_000L
 
 @Preview(showBackground = true)
 @Composable
@@ -401,6 +464,8 @@ private fun StatsScreenPreview() {
                     ),
                 ),
                 metric = ChartMetric.Time,
+                activity = (0L..180L).filter { it % 4 != 1L }.associate { today.minusDays(it) to (it * 7 % 50).toInt() + 1 },
+                today = today,
             ),
             onBack = {},
             onOpenBook = {},

@@ -28,3 +28,5 @@ data class BookStats(
     val pagesRead: Int,
     val percent: Float,
 )
+
+enum class ActivityMetric { Minutes, Pages }

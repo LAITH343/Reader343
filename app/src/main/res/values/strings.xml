@@ -65,6 +65,15 @@
     <string name="stats_chart_time">%1$s read</string>
     <string name="stats_chart_day">%1$s: %2$s</string>
     <string name="stats_books">Books</string>
+    <string name="stats_activity">Activity</string>
+    <string name="stats_activity_summary">%1$s · %2$s</string>
+    <string name="stats_no_reading">No reading</string>
+    <string name="stats_less">Less</string>
+    <string name="stats_more">More</string>
+    <plurals name="stats_active_days">
+        <item quantity="one">%1$s active day</item>
+        <item quantity="other">%1$s active days</item>
+    </plurals>
     <plurals name="stats_days">
         <item quantity="one">%1$s day</item>
         <item quantity="other">%1$s days</item>

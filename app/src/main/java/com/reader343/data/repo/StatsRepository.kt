@@ -4,6 +4,7 @@ import com.reader343.data.db.dao.BookDao
 import com.reader343.data.db.dao.SessionDao
 import com.reader343.data.db.entity.BookWithProgressRow
 import com.reader343.data.db.entity.SessionEntity
+import com.reader343.domain.ActivityMetric
 import com.reader343.domain.BookStats
 import com.reader343.domain.DayStats
 import com.reader343.domain.ReadingStats
@@ -11,6 +12,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.map
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -27,6 +29,28 @@ class StatsRepository @Inject constructor(
         combine(bookDao.observeWithProgress(), sessionDao.observeFinished()) { books, sessions ->
             compute(books, sessions, LocalDate.now(), ZoneId.systemDefault())
         }.flowOn(Dispatchers.Default)
+
+    fun observeDailyActivity(metric: ActivityMetric): Flow<Map<LocalDate, Int>> =
+        sessionDao.observeFinished()
+            .map { sessions -> dailyActivity(sessions, metric, ZoneId.systemDefault()) }
+            .flowOn(Dispatchers.Default)
+
+    private fun dailyActivity(
+        sessions: List<SessionEntity>,
+        metric: ActivityMetric,
+        zone: ZoneId,
+    ): Map<LocalDate, Int> =
+        sessions.groupBy { it.startTs.toLocalDate(zone) }
+            .mapValues { (_, daySessions) ->
+                when (metric) {
+                    ActivityMetric.Minutes -> {
+                        val ms = daySessions.sumOf { it.durationMs }
+                        if (ms > 0L) (ms / MINUTE_MS).toInt().coerceAtLeast(1) else 0
+                    }
+                    ActivityMetric.Pages -> daySessions.sumOf { it.pagesRead }
+                }
+            }
+            .filterValues { it > 0 }
 
     private fun compute(
         books: List<BookWithProgressRow>,
@@ -99,5 +123,6 @@ class StatsRepository @Inject constructor(
 
     private companion object {
         const val CHART_DAYS = 14
+        const val MINUTE_MS = 60_000L
     }
 }
