@@ -2,6 +2,21 @@
     <string name="app_name">Reader343</string>
     <string name="library_title">Library</string>
     <string name="library_empty">Your library is empty</string>
+    <string name="library_empty_hint">Import a PDF to start tracking your reading.</string>
+    <string name="library_import">Import PDF</string>
+    <string name="library_import_failed">Couldn\'t import this PDF</string>
+    <string name="library_not_started">Not started</string>
+    <string name="library_percent">%1$d%%</string>
+    <string name="library_progress_detail">%1$s · %2$s</string>
+    <plurals name="library_pages">
+        <item quantity="one">%d page</item>
+        <item quantity="other">%d pages</item>
+    </plurals>
+    <string name="library_cover_description">Cover of %1$s</string>
+    <string name="delete_book_title">Remove book?</string>
+    <string name="delete_book_message">\"%1$s\" and its reading data will be removed from this device.</string>
+    <string name="action_delete">Remove</string>
+    <string name="action_cancel">Cancel</string>
     <string name="reader_title">Reader</string>
     <string name="stats_title">Stats</string>
     <string name="action_stats">Stats</string>

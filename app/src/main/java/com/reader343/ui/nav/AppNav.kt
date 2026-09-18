@@ -6,7 +6,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
-import com.reader343.ui.library.LibraryScreen
+import com.reader343.ui.library.LibraryRoute
 import com.reader343.ui.reader.ReaderScreen
 import com.reader343.ui.stats.StatsScreen
 
@@ -24,7 +24,7 @@ fun AppNav() {
     val navController = rememberNavController()
     NavHost(navController = navController, startDestination = Routes.LIBRARY) {
         composable(Routes.LIBRARY) {
-            LibraryScreen(
+            LibraryRoute(
                 onOpenBook = { navController.navigate(Routes.reader(it)) },
                 onOpenStats = { navController.navigate(Routes.STATS) },
             )
