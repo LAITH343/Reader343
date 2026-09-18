@@ -1,5 +1,10 @@
 package com.reader343.ui.reader
 
+import android.os.Build
+import androidx.compose.foundation.magnifier
+import androidx.compose.ui.input.pointer.util.VelocityTracker
+import androidx.compose.ui.unit.DpSize
+import androidx.compose.ui.unit.Velocity
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -133,7 +138,9 @@ fun ReaderRoute(
         onBack = onBack,
         onPageSettled = viewModel::onPageSettled,
         onPageRequestHandled = viewModel::onPageRequestHandled,
+        onZoomGestureStart = viewModel::onZoomGestureStart,
         onTransform = viewModel::onTransform,
+        onZoomGestureEnd = viewModel::onZoomGestureEnd,
         onDoubleTap = viewModel::onDoubleTap,
         onTap = viewModel::onTap,
         loadPage = viewModel::pageBitmap,
@@ -152,7 +159,9 @@ fun ReaderScreen(
     onBack: () -> Unit,
     onPageSettled: (Int) -> Unit,
     onPageRequestHandled: () -> Unit,
+    onZoomGestureStart: () -> Unit,
     onTransform: (centroid: Offset, pan: Offset, factor: Float) -> Unit,
+    onZoomGestureEnd: (centroid: Offset, velocity: Velocity) -> Unit,
     onDoubleTap: (Offset) -> Unit,
     onTap: (Offset) -> Unit,
     loadPage: suspend (page: Int, viewport: IntSize) -> ImageBitmap?,
@@ -177,7 +186,9 @@ fun ReaderScreen(
                     noteActions = noteActions,
                     onPageSettled = onPageSettled,
                     onPageRequestHandled = onPageRequestHandled,
+                    onZoomGestureStart = onZoomGestureStart,
                     onTransform = onTransform,
+                    onZoomGestureEnd = onZoomGestureEnd,
                     onDoubleTap = onDoubleTap,
                     onTap = onTap,
                     loadPage = loadPage,
@@ -214,7 +225,9 @@ private fun ReaderPager(
     noteActions: NoteActions,
     onPageSettled: (Int) -> Unit,
     onPageRequestHandled: () -> Unit,
+    onZoomGestureStart: () -> Unit,
     onTransform: (Offset, Offset, Float) -> Unit,
+    onZoomGestureEnd: (Offset, Velocity) -> Unit,
     onDoubleTap: (Offset) -> Unit,
     onTap: (Offset) -> Unit,
     loadPage: suspend (Int, IntSize) -> ImageBitmap?,
@@ -249,12 +262,15 @@ private fun ReaderPager(
             highlights = markup.highlights[index].orEmpty(),
             selection = markup.selection?.takeIf { active && it.page == index },
             activeHighlight = markup.activeHighlight?.takeIf { active && it.page == index },
+            loupe = markup.loupe?.takeIf { active },
             markupActions = markupActions,
             notes = notes.byPage[index].orEmpty(),
             noteAnchor = notes.editor?.takeIf { active && it.page == index }?.anchor?.rect,
             activeHighlightHasNote = markup.activeHighlight?.let { notes.forHighlight(it.id) } != null,
             noteActions = noteActions,
+            onZoomGestureStart = onZoomGestureStart,
             onTransform = onTransform,
+            onZoomGestureEnd = onZoomGestureEnd,
             onDoubleTap = onDoubleTap,
             onTap = onTap,
             loadPage = loadPage,
@@ -272,12 +288,15 @@ private fun PdfPage(
     highlights: List<Highlight>,
     selection: SelectionUi?,
     activeHighlight: Highlight?,
+    loupe: Loupe?,
     markupActions: MarkupActions,
     notes: List<Note>,
     noteAnchor: NormRect?,
     activeHighlightHasNote: Boolean,
     noteActions: NoteActions,
+    onZoomGestureStart: () -> Unit,
     onTransform: (Offset, Offset, Float) -> Unit,
+    onZoomGestureEnd: (Offset, Velocity) -> Unit,
     onDoubleTap: (Offset) -> Unit,
     onTap: (Offset) -> Unit,
     loadPage: suspend (Int, IntSize) -> ImageBitmap?,
@@ -304,7 +323,9 @@ private fun PdfPage(
     val currentLayout by rememberUpdatedState(layout)
     val currentSelection by rememberUpdatedState(selection)
     val currentActions by rememberUpdatedState(markupActions)
+    val currentOnZoomGestureStart by rememberUpdatedState(onZoomGestureStart)
     val currentOnTransform by rememberUpdatedState(onTransform)
+    val currentOnZoomGestureEnd by rememberUpdatedState(onZoomGestureEnd)
     val currentOnDoubleTap by rememberUpdatedState(onDoubleTap)
     val currentOnTap by rememberUpdatedState(onTap)
     val loadingDescription = stringResource(R.string.reader_page_loading, page + 1)
@@ -316,13 +337,21 @@ private fun PdfPage(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .onSizeChanged { viewport = it },
+            .onSizeChanged { viewport = it }
+            .selectionLoupe(loupe),
     ) {
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .pointerInput(active) {
-                    if (active) detectZoomAndPan({ currentZoom.isZoomed }) { c, p, f -> currentOnTransform(c, p, f) }
+                    if (active) {
+                        detectZoomAndPan(
+                            isZoomed = { currentZoom.isZoomed },
+                            onStart = { currentOnZoomGestureStart() },
+                            onTransform = { c, p, f -> currentOnTransform(c, p, f) },
+                            onEnd = { c, v -> currentOnZoomGestureEnd(c, v) },
+                        )
+                    }
                 }
                 .pointerInput(active) {
                     detectTapGestures(
@@ -396,7 +425,7 @@ private fun PdfPage(
                     selection?.let { drawSelection(it, layout, accent, handleRadius / zoom.scale, markStroke / zoom.scale) }
                 },
         )
-        if (selection != null) {
+        if (selection != null && loupe == null) {
             SelectionPalette(
                 selectedColor = selection.color,
                 canConfirm = selection.canConfirm,
@@ -409,7 +438,7 @@ private fun PdfPage(
                     margin = floatMargin,
                 ),
             )
-        } else if (activeHighlight != null) {
+        } else if (selection == null && activeHighlight != null) {
             val bounds = activeHighlight.rects.reduceOrNull(NormRect::union)
             if (bounds != null) {
                 HighlightMenu(
@@ -557,6 +586,20 @@ private fun handleAt(
     return handle to (anchor - position)
 }
 
+private fun Modifier.selectionLoupe(loupe: Loupe?): Modifier {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) return this
+    return magnifier(
+        sourceCenter = { loupe?.source ?: Offset.Unspecified },
+        magnifierCenter = {
+            loupe?.let { Offset(it.source.x, minOf(it.source.y, it.touch.y) - LoupeLift.toPx()) }
+                ?: Offset.Unspecified
+        },
+        zoom = LOUPE_ZOOM,
+        size = LoupeSize,
+        cornerRadius = LoupeCornerRadius,
+    )
+}
+
 private fun screenBounds(bounds: NormRect, layout: PageLayout, zoom: ZoomState, extraBottom: Float): Rect {
     val topLeft = layout.toScreen(zoom, bounds.left, bounds.top)
     val bottomRight = layout.toScreen(zoom, bounds.right, bounds.bottom)
@@ -592,7 +635,7 @@ private suspend fun PointerInputScope.detectSelectionGestures(
         val grabbed = handleAt(down.position)
         if (grabbed != null) {
             down.consume()
-            actions().onHandleGrab(grabbed.first, grabbed.second)
+            actions().onHandleGrab(grabbed.first, down.position, grabbed.second)
         } else {
             val press = awaitLongPressOrCancellation(down.id) ?: return@awaitEachGesture
             press.consume()
@@ -618,12 +661,19 @@ private suspend fun AwaitPointerEventScope.trackSelectionDrag(pointer: PointerId
 
 private suspend fun PointerInputScope.detectZoomAndPan(
     isZoomed: () -> Boolean,
+    onStart: () -> Unit,
     onTransform: (centroid: Offset, pan: Offset, factor: Float) -> Unit,
+    onEnd: (centroid: Offset, velocity: Velocity) -> Unit,
 ) {
     awaitEachGesture {
         awaitFirstDown(requireUnconsumed = false)
+        onStart()
+        val tracker = VelocityTracker()
         var pastSlop = false
+        var transformed = false
         var accumulated = Offset.Zero
+        var travelled = Offset.Zero
+        var centroid = Offset.Zero
         do {
             val event = awaitPointerEvent()
             if (event.changes.none { it.isConsumed }) {
@@ -636,12 +686,17 @@ private suspend fun PointerInputScope.detectZoomAndPan(
                 }
                 if (pastSlop && (multiTouch || isZoomed())) {
                     if (factor != 1f || pan != Offset.Zero) {
-                        onTransform(event.calculateCentroid(useCurrent = false), pan, factor)
+                        centroid = event.calculateCentroid(useCurrent = false)
+                        onTransform(centroid, pan, factor)
+                        transformed = true
                     }
+                    travelled += pan
+                    tracker.addPosition(event.changes.first().uptimeMillis, travelled)
                     event.changes.forEach { if (it.positionChanged()) it.consume() }
                 }
             }
         } while (event.changes.any { it.pressed })
+        if (transformed) onEnd(centroid, tracker.calculateVelocity())
     }
 }
 
@@ -906,6 +961,10 @@ private val NoteMarkerSize = 22.dp
 private val NoteMarkerInset = 6.dp
 private val NoteMarkerTouchRadius = 24.dp
 private const val NOTE_ICON_RATIO = 0.6f
+private val LoupeSize = DpSize(160.dp, 64.dp)
+private val LoupeCornerRadius = 32.dp
+private val LoupeLift = 80.dp
+private const val LOUPE_ZOOM = 2f
 
 @Composable
 private fun ReaderTopBar(
@@ -1037,7 +1096,9 @@ private fun ReaderReadyPreview() {
             onBack = {},
             onPageSettled = {},
             onPageRequestHandled = {},
+            onZoomGestureStart = {},
             onTransform = { _, _, _ -> },
+            onZoomGestureEnd = { _, _ -> },
             onDoubleTap = {},
             onTap = {},
             loadPage = { _, _ -> null },
@@ -1060,7 +1121,9 @@ private fun ReaderErrorPreview() {
             onBack = {},
             onPageSettled = {},
             onPageRequestHandled = {},
+            onZoomGestureStart = {},
             onTransform = { _, _, _ -> },
+            onZoomGestureEnd = { _, _ -> },
             onDoubleTap = {},
             onTap = {},
             loadPage = { _, _ -> null },

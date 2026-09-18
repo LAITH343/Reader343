@@ -33,15 +33,18 @@ data class SelectionUi(
     val canConfirm: Boolean get() = rects.isNotEmpty()
 }
 
+data class Loupe(val source: Offset, val touch: Offset)
+
 data class MarkupState(
     val highlights: Map<Int, List<Highlight>> = emptyMap(),
     val selection: SelectionUi? = null,
     val activeHighlight: Highlight? = null,
+    val loupe: Loupe? = null,
 )
 
 interface MarkupActions {
     fun onLongPress(position: Offset)
-    fun onHandleGrab(handle: SelectionHandle, grabOffset: Offset)
+    fun onHandleGrab(handle: SelectionHandle, position: Offset, grabOffset: Offset)
     fun onSelectionDrag(position: Offset)
     fun onSelectionDragEnd()
     fun onColorSelected(color: Int)
@@ -51,7 +54,7 @@ interface MarkupActions {
     companion object {
         val None = object : MarkupActions {
             override fun onLongPress(position: Offset) = Unit
-            override fun onHandleGrab(handle: SelectionHandle, grabOffset: Offset) = Unit
+            override fun onHandleGrab(handle: SelectionHandle, position: Offset, grabOffset: Offset) = Unit
             override fun onSelectionDrag(position: Offset) = Unit
             override fun onSelectionDragEnd() = Unit
             override fun onColorSelected(color: Int) = Unit

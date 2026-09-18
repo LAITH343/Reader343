@@ -2,10 +2,19 @@ package com.reader343.ui.reader
 
 import android.graphics.Bitmap
 import android.graphics.RectF
+import androidx.compose.animation.core.AnimationState
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.VectorConverter
+import androidx.compose.animation.core.animate
+import androidx.compose.animation.core.animateDecay
+import androidx.compose.animation.core.exponentialDecay
+import androidx.compose.animation.core.spring
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.platform.AndroidUiDispatcher
+import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.IntSize
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
@@ -43,7 +52,9 @@ import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+import kotlin.math.hypot
 import kotlin.math.roundToInt
+import kotlin.math.sqrt
 
 sealed interface ReaderUiState {
     data object Loading : ReaderUiState
@@ -61,7 +72,7 @@ sealed interface ReaderUiState {
     }
 }
 
-class PageDetail(val page: Int, val region: Rect, val bitmap: ImageBitmap)
+class PageDetail(val page: Int, val region: Rect, val tier: Float, val bitmap: ImageBitmap)
 
 @OptIn(FlowPreview::class)
 @HiltViewModel
@@ -104,6 +115,8 @@ class ReaderViewModel @Inject constructor(
     private var pageCount = 0
     private var savedPage = -1
     private var chromeJob: Job? = null
+    private var zoomJob: Job? = null
+    private var touch: Offset? = null
     private var selectionJob: Job? = null
     private var pendingNoteId: Long? = null
     private var editorKey = 0L
@@ -178,6 +191,7 @@ class ReaderViewModel @Inject constructor(
     fun onViewportChanged(size: IntSize) {
         if (size == viewport || size.width <= 0 || size.height <= 0) return
         viewport = size
+        stopZoomAnimation()
         cache.clear()
         _detail.value = null
         _zoom.value = ZoomState()
@@ -186,6 +200,7 @@ class ReaderViewModel @Inject constructor(
     fun onPageSettled(page: Int) {
         if (page != currentPage.value) {
             currentPage.value = page
+            stopZoomAnimation()
             _zoom.value = ZoomState()
             _detail.value = null
             clearSelection()
@@ -203,20 +218,66 @@ class ReaderViewModel @Inject constructor(
         updateReady { it.copy(pageRequest = null) }
     }
 
+    fun onZoomGestureStart() = stopZoomAnimation()
+
     fun onTransform(centroid: Offset, pan: Offset, factor: Float) {
         val layout = layoutFor(currentPage.value) ?: return
+        stopZoomAnimation()
         _zoom.update { layout.transform(it, centroid, pan, factor) }
+    }
+
+    fun onZoomGestureEnd(centroid: Offset, velocity: Velocity) {
+        val layout = layoutFor(currentPage.value) ?: return
+        val zoom = _zoom.value
+        val settled = zoom.scale.coerceIn(ZoomState.MIN_SCALE, ZoomState.MAX_SCALE)
+        when {
+            settled != zoom.scale -> animateScale(layout, centroid, settled)
+            zoom.isZoomed && hypot(velocity.x, velocity.y) >= MIN_FLING_VELOCITY -> fling(layout, velocity)
+        }
     }
 
     fun onDoubleTap(position: Offset) {
         val layout = layoutFor(currentPage.value) ?: return
-        _zoom.update { current ->
-            if (current.isZoomed) {
-                ZoomState()
-            } else {
-                layout.transform(current, position, Offset.Zero, ZoomState.DOUBLE_TAP_SCALE / current.scale)
+        val target = if (_zoom.value.isZoomed) ZoomState.MIN_SCALE else ZoomState.DOUBLE_TAP_SCALE
+        animateScale(layout, position, target)
+    }
+
+    private fun animateScale(layout: PageLayout, focus: Offset, target: Float) {
+        stopZoomAnimation()
+        val start = _zoom.value
+        zoomJob = viewModelScope.launch(AndroidUiDispatcher.Main) {
+            animate(
+                initialValue = start.scale,
+                targetValue = target,
+                animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+            ) { value, _ ->
+                _zoom.value = layout.clamp(layout.scaleAbout(start, focus, value))
             }
         }
+    }
+
+    private fun fling(layout: PageLayout, velocity: Velocity) {
+        stopZoomAnimation()
+        zoomJob = viewModelScope.launch(AndroidUiDispatcher.Main) {
+            var previous = Offset.Zero
+            AnimationState(
+                typeConverter = Offset.VectorConverter,
+                initialValue = Offset.Zero,
+                initialVelocityVector = Offset.VectorConverter.convertToVector(Offset(velocity.x, velocity.y)),
+            ).animateDecay(exponentialDecay()) {
+                val delta = value - previous
+                previous = value
+                val before = _zoom.value
+                val after = layout.pan(before, delta)
+                _zoom.value = after
+                if (after == before) cancelAnimation()
+            }
+        }
+    }
+
+    private fun stopZoomAnimation() {
+        zoomJob?.cancel()
+        zoomJob = null
     }
 
     fun onTap(position: Offset) {
@@ -238,6 +299,8 @@ class ReaderViewModel @Inject constructor(
         val point = layout.toNormalized(_zoom.value, position)
         if (point.x !in 0f..1f || point.y !in 0f..1f) return
         clearSelection()
+        touch = position
+        showLoupe()
         val cached = textLayer.peek(page)
         if (cached != null) {
             startSelection(page, point, cached)
@@ -249,32 +312,45 @@ class ReaderViewModel @Inject constructor(
         }
     }
 
-    override fun onHandleGrab(handle: SelectionHandle, grabOffset: Offset) {
+    override fun onHandleGrab(handle: SelectionHandle, position: Offset, grabOffset: Offset) {
         activeHandle = handle
         this.grabOffset = grabOffset
+        touch = position
+        showLoupe()
     }
 
     override fun onSelectionDrag(position: Offset) {
         val current = draft
         if (current == null) {
+            if (selectionJob?.isActive != true) return
             pendingDrag = position
+            touch = position
+            showLoupe()
             return
         }
+        touch = position
         val layout = layoutFor(current.page) ?: return
         val point = layout.toNormalized(_zoom.value, position + grabOffset)
-        draft = when (current) {
-            is SelectionDraft.Text -> dragText(current, point, layout) ?: return
+        val next = when (current) {
+            is SelectionDraft.Text -> dragText(current, point, layout)
             is SelectionDraft.Region -> {
                 val clamped = Offset(point.x.coerceIn(0f, 1f), point.y.coerceIn(0f, 1f))
                 if (activeHandle == SelectionHandle.End) current.copy(end = clamped) else current.copy(start = clamped)
             }
         }
+        if (next == null) {
+            showLoupe()
+            return
+        }
+        draft = next
         publishSelection()
     }
 
     override fun onSelectionDragEnd() {
         grabOffset = Offset.Zero
         pendingDrag = null
+        touch = null
+        _markup.update { it.copy(loupe = null) }
     }
 
     override fun onColorSelected(color: Int) {
@@ -492,7 +568,21 @@ class ReaderViewModel @Inject constructor(
                 color = selectionColor,
             )
         }
-        _markup.update { it.copy(selection = selection, activeHighlight = null) }
+        _markup.update { it.copy(selection = selection, activeHighlight = null, loupe = loupeFor(selection)) }
+    }
+
+    private fun showLoupe() {
+        _markup.update { it.copy(loupe = loupeFor(it.selection)) }
+    }
+
+    private fun loupeFor(selection: SelectionUi?): Loupe? {
+        val position = touch ?: return null
+        val point = position + grabOffset
+        val layout = selection?.let { layoutFor(it.page) }
+        if (selection == null || layout == null || selection.region) return Loupe(point, position)
+        val mark = if (activeHandle == SelectionHandle.Start) selection.start else selection.end
+        val line = layout.toScreen(_zoom.value, mark.x, (mark.top + mark.bottom) / 2f)
+        return Loupe(Offset(point.x, line.y), position)
     }
 
     private fun clearSelection() {
@@ -501,7 +591,8 @@ class ReaderViewModel @Inject constructor(
         draft = null
         pendingDrag = null
         grabOffset = Offset.Zero
-        _markup.update { it.copy(selection = null, activeHighlight = null) }
+        touch = null
+        _markup.update { it.copy(selection = null, activeHighlight = null, loupe = null) }
     }
 
     private fun highlightAt(position: Offset): Highlight? {
@@ -578,9 +669,16 @@ class ReaderViewModel @Inject constructor(
             return
         }
         val layout = layoutFor(page) ?: return
-        val region = layout.visibleRegion(zoom) ?: return
+        val visible = layout.visibleRegion(zoom) ?: return
+        val tier = DETAIL_TIERS.firstOrNull { it >= zoom.scale - ZoomState.ZOOM_EPSILON } ?: DETAIL_TIERS.last()
+        val current = _detail.value
+        if (current != null && current.page == page && current.tier == tier && current.region.encloses(visible)) return
+        val region = visible.padded(DETAIL_PADDING)
+        val widthPx = layout.page.width * tier * region.width
+        val heightPx = layout.page.height * tier * region.height
+        val limit = sqrt(MAX_DETAIL_PIXELS / (widthPx * heightPx)).coerceAtMost(1f)
         val size = engine.pageSize(page)
-        val dpi = layout.page.width * zoom.scale / size.widthPt * PdfEngine.POINTS_DPI
+        val dpi = layout.page.width * tier * limit / size.widthPt * PdfEngine.POINTS_DPI
         val bitmap = try {
             engine.renderPage(page, dpi, RectF(region.left, region.top, region.right, region.bottom))
         } catch (e: CancellationException) {
@@ -588,7 +686,21 @@ class ReaderViewModel @Inject constructor(
         } catch (e: Throwable) {
             return
         }
-        if (page == currentPage.value) _detail.value = PageDetail(page, region, bitmap.asImageBitmap())
+        if (page == currentPage.value) _detail.value = PageDetail(page, region, tier, bitmap.asImageBitmap())
+    }
+
+    private fun Rect.encloses(other: Rect): Boolean =
+        other.left >= left && other.top >= top && other.right <= right && other.bottom <= bottom
+
+    private fun Rect.padded(fraction: Float): Rect {
+        val dx = width * fraction
+        val dy = height * fraction
+        return Rect(
+            left = (left - dx).coerceAtLeast(0f),
+            top = (top - dy).coerceAtLeast(0f),
+            right = (right + dx).coerceAtMost(1f),
+            bottom = (bottom + dy).coerceAtMost(1f),
+        )
     }
 
     private fun keyFor(page: Int): PageBitmapCache.Key? {
@@ -647,6 +759,10 @@ class ReaderViewModel @Inject constructor(
         const val DETAIL_DEBOUNCE_MS = 150L
         const val CHROME_HIDE_MS = 3_000L
         const val DETAIL_MIN_SCALE = 1.25f
+        val DETAIL_TIERS = floatArrayOf(1.5f, 2f, 3f, 4f, 5f)
+        const val DETAIL_PADDING = 0.25f
+        const val MAX_DETAIL_PIXELS = 12_000_000f
+        const val MIN_FLING_VELOCITY = 400f
         const val MAX_BASE_WIDTH_PX = 4096
         const val TEXT_HIT_SLOP = 0.03f
         const val HIGHLIGHT_HIT_SLOP = 0.004f

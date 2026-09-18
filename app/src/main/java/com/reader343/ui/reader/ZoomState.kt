@@ -6,6 +6,8 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.unit.IntSize
 import com.reader343.domain.NormRect
 import com.reader343.pdf.PageSize
+import kotlin.math.abs
+import kotlin.math.pow
 
 data class ZoomState(
     val scale: Float = MIN_SCALE,
@@ -18,22 +20,38 @@ data class ZoomState(
         const val MIN_SCALE = 1f
         const val MAX_SCALE = 5f
         const val DOUBLE_TAP_SCALE = 2.5f
-        private const val ZOOM_EPSILON = 0.01f
+        const val MIN_ELASTIC_SCALE = 0.8f
+        const val MAX_ELASTIC_SCALE = 6.5f
+        const val ZOOM_EPSILON = 0.01f
+        const val ELASTIC_RESISTANCE = 0.35f
     }
 }
 
 data class PageLayout(val viewport: IntSize, val page: Rect) {
 
     fun transform(zoom: ZoomState, centroid: Offset, pan: Offset, factor: Float): ZoomState {
-        val newScale = (zoom.scale * factor).coerceIn(ZoomState.MIN_SCALE, ZoomState.MAX_SCALE)
-        val ratio = newScale / zoom.scale
-        val x = centroid.x - (centroid.x - zoom.offsetX) * ratio + pan.x
-        val y = centroid.y - (centroid.y - zoom.offsetY) * ratio + pan.y
-        return clamp(ZoomState(newScale, x, y))
+        val beyond = (zoom.scale >= ZoomState.MAX_SCALE && factor > 1f) ||
+            (zoom.scale <= ZoomState.MIN_SCALE && factor < 1f)
+        val effective = if (beyond) factor.pow(ZoomState.ELASTIC_RESISTANCE) else factor
+        val newScale = (zoom.scale * effective).coerceIn(ZoomState.MIN_ELASTIC_SCALE, ZoomState.MAX_ELASTIC_SCALE)
+        val scaled = scaleAbout(zoom, centroid, newScale)
+        return clamp(scaled.copy(offsetX = scaled.offsetX + pan.x, offsetY = scaled.offsetY + pan.y))
     }
 
+    fun scaleAbout(zoom: ZoomState, focus: Offset, scale: Float): ZoomState {
+        val ratio = scale / zoom.scale
+        return ZoomState(
+            scale = scale,
+            offsetX = focus.x - (focus.x - zoom.offsetX) * ratio,
+            offsetY = focus.y - (focus.y - zoom.offsetY) * ratio,
+        )
+    }
+
+    fun pan(zoom: ZoomState, delta: Offset): ZoomState =
+        clamp(zoom.copy(offsetX = zoom.offsetX + delta.x, offsetY = zoom.offsetY + delta.y))
+
     fun clamp(zoom: ZoomState): ZoomState {
-        if (!zoom.isZoomed) return ZoomState()
+        if (abs(zoom.scale - ZoomState.MIN_SCALE) <= ZoomState.ZOOM_EPSILON) return ZoomState()
         return zoom.copy(
             offsetX = clampAxis(zoom.offsetX, zoom.scale, page.left, page.right, viewport.width.toFloat()),
             offsetY = clampAxis(zoom.offsetY, zoom.scale, page.top, page.bottom, viewport.height.toFloat()),
