@@ -11,11 +11,14 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.reader343.data.repo.HighlightRepository
+import com.reader343.data.repo.NoteRepository
 import com.reader343.data.repo.ReaderRepository
 import com.reader343.di.ApplicationScope
 import com.reader343.domain.Highlight
 import com.reader343.domain.NewHighlight
 import com.reader343.domain.NormRect
+import com.reader343.domain.Note
+import com.reader343.domain.NoteAnchor
 import com.reader343.pdf.PageBitmapCache
 import com.reader343.pdf.PageSize
 import com.reader343.pdf.PageText
@@ -51,6 +54,7 @@ sealed interface ReaderUiState {
         val initialPage: Int,
         val currentPage: Int,
         val chromeVisible: Boolean,
+        val pageRequest: Int? = null,
     ) : ReaderUiState {
         val pageCount: Int get() = pageSizes.size
         val percent: Float get() = if (pageCount == 0) 0f else (currentPage + 1).toFloat() / pageCount
@@ -65,9 +69,10 @@ class ReaderViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val repository: ReaderRepository,
     private val highlightRepository: HighlightRepository,
+    private val noteRepository: NoteRepository,
     private val engine: PdfEngine,
     @ApplicationScope private val appScope: CoroutineScope,
-) : ViewModel(), MarkupActions {
+) : ViewModel(), MarkupActions, NoteActions {
 
     private val bookId: Long = checkNotNull(savedStateHandle[Routes.ARG_BOOK_ID])
 
@@ -83,6 +88,9 @@ class ReaderViewModel @Inject constructor(
     private val _markup = MutableStateFlow(MarkupState())
     val markup: StateFlow<MarkupState> = _markup.asStateFlow()
 
+    private val _notes = MutableStateFlow(NotesUiState())
+    val notes: StateFlow<NotesUiState> = _notes.asStateFlow()
+
     private val cache = PageBitmapCache()
     private val textLayer = TextLayer(engine)
     private var draft: SelectionDraft? = null
@@ -97,6 +105,8 @@ class ReaderViewModel @Inject constructor(
     private var savedPage = -1
     private var chromeJob: Job? = null
     private var selectionJob: Job? = null
+    private var pendingNoteId: Long? = null
+    private var editorKey = 0L
 
     init {
         viewModelScope.launch { load() }
@@ -150,6 +160,18 @@ class ReaderViewModel @Inject constructor(
                 }
             }
         }
+        viewModelScope.launch {
+            noteRepository.observe(bookId).collect { notes ->
+                _notes.update { state ->
+                    state.copy(
+                        byPage = notes.groupBy { it.page },
+                        editor = state.editor?.takeIf { editor ->
+                            editor.noteId == null || notes.any { it.id == editor.noteId }
+                        },
+                    )
+                }
+            }
+        }
         preloadText(initial)
     }
 
@@ -162,13 +184,23 @@ class ReaderViewModel @Inject constructor(
     }
 
     fun onPageSettled(page: Int) {
-        if (page == currentPage.value) return
-        currentPage.value = page
-        _zoom.value = ZoomState()
-        _detail.value = null
-        clearSelection()
-        updateReady { it.copy(currentPage = page) }
-        preloadText(page)
+        if (page != currentPage.value) {
+            currentPage.value = page
+            _zoom.value = ZoomState()
+            _detail.value = null
+            clearSelection()
+            updateReady { it.copy(currentPage = page) }
+            preloadText(page)
+        }
+        val pending = pendingNoteId?.let(::findNote) ?: return
+        if (pending.page == page) {
+            pendingNoteId = null
+            openEditor(pending)
+        }
+    }
+
+    fun onPageRequestHandled() {
+        updateReady { it.copy(pageRequest = null) }
     }
 
     fun onTransform(centroid: Offset, pan: Offset, factor: Float) {
@@ -288,6 +320,109 @@ class ReaderViewModel @Inject constructor(
         val active = _markup.value.activeHighlight ?: return
         clearSelection()
         viewModelScope.launch { highlightRepository.delete(active.id) }
+    }
+
+    override fun onAddNoteFromSelection() {
+        val anchor = when (val current = draft) {
+            null -> null
+            is SelectionDraft.Text -> {
+                val text = textLayer.peek(current.page)
+                text?.rectsFor(current.start, current.end)?.reduceOrNull(NormRect::union)?.let { rect ->
+                    NoteAnchor(
+                        rect = rect,
+                        highlightId = null,
+                        snippet = text.textFor(current.start, current.end).ifEmpty { null },
+                    )
+                }
+            }
+            is SelectionDraft.Region -> current.rect()?.let { NoteAnchor(rect = it, highlightId = null, snippet = null) }
+        }
+        val page = draft?.page ?: return
+        clearSelection()
+        if (anchor != null) startEditor(noteId = null, page = page, anchor = anchor, body = "")
+    }
+
+    override fun onAddNoteFromHighlight() {
+        val active = _markup.value.activeHighlight ?: return
+        clearSelection()
+        val existing = _notes.value.forHighlight(active.id)
+        if (existing != null) {
+            openEditor(existing)
+            return
+        }
+        val rect = active.rects.reduceOrNull(NormRect::union) ?: return
+        startEditor(
+            noteId = null,
+            page = active.page,
+            anchor = NoteAnchor(rect = rect, highlightId = active.id, snippet = active.snippet),
+            body = "",
+        )
+    }
+
+    override fun onOpenNote(noteId: Long) {
+        val note = findNote(noteId) ?: return
+        clearSelection()
+        openEditor(note)
+    }
+
+    override fun onSaveNote(body: String) {
+        val editor = _notes.value.editor ?: return
+        val text = body.trim()
+        if (text.isEmpty()) return
+        closeEditor()
+        viewModelScope.launch {
+            if (editor.noteId == null) {
+                noteRepository.add(bookId, editor.page, editor.anchor, text)
+            } else {
+                noteRepository.updateBody(editor.noteId, text)
+            }
+        }
+    }
+
+    override fun onDeleteNote() {
+        val noteId = _notes.value.editor?.noteId
+        closeEditor()
+        if (noteId != null) viewModelScope.launch { noteRepository.delete(noteId) }
+    }
+
+    override fun onDismissNote() = closeEditor()
+
+    override fun onShowNotes() {
+        clearSelection()
+        _notes.update { it.copy(listVisible = true) }
+    }
+
+    override fun onHideNotes() {
+        _notes.update { it.copy(listVisible = false) }
+    }
+
+    override fun onJumpToNote(noteId: Long) {
+        val note = findNote(noteId) ?: return
+        _notes.update { it.copy(listVisible = false) }
+        if (note.page == currentPage.value) {
+            pendingNoteId = null
+            openEditor(note)
+        } else {
+            pendingNoteId = note.id
+            updateReady { it.copy(pageRequest = note.page) }
+        }
+    }
+
+    private fun findNote(noteId: Long): Note? =
+        _notes.value.byPage.values.firstNotNullOfOrNull { notes -> notes.firstOrNull { it.id == noteId } }
+
+    private fun openEditor(note: Note) =
+        startEditor(noteId = note.id, page = note.page, anchor = note.anchor, body = note.body)
+
+    private fun startEditor(noteId: Long?, page: Int, anchor: NoteAnchor, body: String) {
+        editorKey++
+        _notes.update {
+            it.copy(editor = NoteEditor(key = editorKey, noteId = noteId, page = page, anchor = anchor, body = body))
+        }
+    }
+
+    private fun closeEditor() {
+        _notes.update { it.copy(editor = null) }
     }
 
     private fun startSelection(page: Int, point: Offset, text: PageText?) {

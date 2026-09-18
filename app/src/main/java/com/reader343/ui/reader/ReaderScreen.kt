@@ -7,6 +7,29 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.Button
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ListItem
+import androidx.compose.material3.ListItemDefaults
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.ui.graphics.painter.Painter
+import androidx.compose.ui.text.font.FontStyle
+import com.reader343.domain.Note
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.gestures.awaitLongPressOrCancellation
 import androidx.compose.foundation.gestures.awaitEachGesture
@@ -97,6 +120,7 @@ fun ReaderRoute(
     val zoom by viewModel.zoom.collectAsStateWithLifecycle()
     val detail by viewModel.detail.collectAsStateWithLifecycle()
     val markup by viewModel.markup.collectAsStateWithLifecycle()
+    val notes by viewModel.notes.collectAsStateWithLifecycle()
 
     ReaderScreen(
         state = state,
@@ -104,8 +128,11 @@ fun ReaderRoute(
         detail = detail,
         markup = markup,
         markupActions = viewModel,
+        notes = notes,
+        noteActions = viewModel,
         onBack = onBack,
         onPageSettled = viewModel::onPageSettled,
+        onPageRequestHandled = viewModel::onPageRequestHandled,
         onTransform = viewModel::onTransform,
         onDoubleTap = viewModel::onDoubleTap,
         onTap = viewModel::onTap,
@@ -120,8 +147,11 @@ fun ReaderScreen(
     detail: PageDetail?,
     markup: MarkupState,
     markupActions: MarkupActions,
+    notes: NotesUiState,
+    noteActions: NoteActions,
     onBack: () -> Unit,
     onPageSettled: (Int) -> Unit,
+    onPageRequestHandled: () -> Unit,
     onTransform: (centroid: Offset, pan: Offset, factor: Float) -> Unit,
     onDoubleTap: (Offset) -> Unit,
     onTap: (Offset) -> Unit,
@@ -143,7 +173,10 @@ fun ReaderScreen(
                     detail = detail,
                     markup = markup,
                     markupActions = markupActions,
+                    notes = notes,
+                    noteActions = noteActions,
                     onPageSettled = onPageSettled,
+                    onPageRequestHandled = onPageRequestHandled,
                     onTransform = onTransform,
                     onDoubleTap = onDoubleTap,
                     onTap = onTap,
@@ -153,6 +186,7 @@ fun ReaderScreen(
                     visible = state.chromeVisible,
                     title = state.title,
                     onBack = onBack,
+                    onShowNotes = noteActions::onShowNotes,
                     modifier = Modifier.align(Alignment.TopCenter),
                 )
                 ReaderBottomBar(
@@ -162,6 +196,8 @@ fun ReaderScreen(
                     percent = state.percent,
                     modifier = Modifier.align(Alignment.BottomCenter),
                 )
+                notes.editor?.let { NoteSheet(editor = it, actions = noteActions) }
+                if (notes.listVisible) NotesListSheet(notes = notes.all, actions = noteActions)
             }
         }
     }
@@ -174,7 +210,10 @@ private fun ReaderPager(
     detail: PageDetail?,
     markup: MarkupState,
     markupActions: MarkupActions,
+    notes: NotesUiState,
+    noteActions: NoteActions,
     onPageSettled: (Int) -> Unit,
+    onPageRequestHandled: () -> Unit,
     onTransform: (Offset, Offset, Float) -> Unit,
     onDoubleTap: (Offset) -> Unit,
     onTap: (Offset) -> Unit,
@@ -182,9 +221,16 @@ private fun ReaderPager(
 ) {
     val pagerState = rememberPagerState(initialPage = state.initialPage) { state.pageCount }
     val currentOnPageSettled by rememberUpdatedState(onPageSettled)
+    val currentOnPageRequestHandled by rememberUpdatedState(onPageRequestHandled)
 
     LaunchedEffect(pagerState) {
         snapshotFlow { pagerState.settledPage }.collect { currentOnPageSettled(it) }
+    }
+
+    LaunchedEffect(state.pageRequest) {
+        val request = state.pageRequest ?: return@LaunchedEffect
+        pagerState.scrollToPage(request)
+        currentOnPageRequestHandled()
     }
 
     HorizontalPager(
@@ -204,6 +250,10 @@ private fun ReaderPager(
             selection = markup.selection?.takeIf { active && it.page == index },
             activeHighlight = markup.activeHighlight?.takeIf { active && it.page == index },
             markupActions = markupActions,
+            notes = notes.byPage[index].orEmpty(),
+            noteAnchor = notes.editor?.takeIf { active && it.page == index }?.anchor?.rect,
+            activeHighlightHasNote = markup.activeHighlight?.let { notes.forHighlight(it.id) } != null,
+            noteActions = noteActions,
             onTransform = onTransform,
             onDoubleTap = onDoubleTap,
             onTap = onTap,
@@ -223,6 +273,10 @@ private fun PdfPage(
     selection: SelectionUi?,
     activeHighlight: Highlight?,
     markupActions: MarkupActions,
+    notes: List<Note>,
+    noteAnchor: NormRect?,
+    activeHighlightHasNote: Boolean,
+    noteActions: NoteActions,
     onTransform: (Offset, Offset, Float) -> Unit,
     onDoubleTap: (Offset) -> Unit,
     onTap: (Offset) -> Unit,
@@ -237,7 +291,15 @@ private fun PdfPage(
     val markStroke = with(density) { MarkStroke.toPx() }
     val floatGap = with(density) { FloatGap.toPx() }
     val floatMargin = with(density) { FloatMargin.toPx() }
+    val markerSize = with(density) { NoteMarkerSize.toPx() }
+    val markerInset = with(density) { NoteMarkerInset.toPx() }
+    val markerTouch = with(density) { NoteMarkerTouchRadius.toPx() }
     val accent = MaterialTheme.colorScheme.primary
+    val markerColor = MaterialTheme.colorScheme.tertiary
+    val markerContent = MaterialTheme.colorScheme.onTertiary
+    val notePainter = painterResource(R.drawable.ic_note)
+    val currentNotes by rememberUpdatedState(notes)
+    val currentNoteActions by rememberUpdatedState(noteActions)
     val currentZoom by rememberUpdatedState(zoom)
     val currentLayout by rememberUpdatedState(layout)
     val currentSelection by rememberUpdatedState(selection)
@@ -264,7 +326,18 @@ private fun PdfPage(
                 }
                 .pointerInput(active) {
                     detectTapGestures(
-                        onTap = { position -> currentOnTap(position) },
+                        onTap = { position ->
+                            val hit = noteAt(
+                                notes = currentNotes,
+                                layout = currentLayout,
+                                zoom = currentZoom,
+                                position = position,
+                                size = markerSize,
+                                inset = markerInset,
+                                touchRadius = markerTouch,
+                            )
+                            if (hit != null) currentNoteActions.onOpenNote(hit.id) else currentOnTap(position)
+                        },
                         onDoubleTap = if (active) { position -> currentOnDoubleTap(position) } else null,
                     )
                 }
@@ -312,6 +385,14 @@ private fun PdfPage(
                     }
                     highlights.forEach { drawMarks(it.rects, Color(it.color), layout) }
                     activeHighlight?.let { drawOutlines(it.rects, accent, layout, markStroke / zoom.scale) }
+                    noteAnchor?.let { drawOutlines(listOf(it), markerColor, layout, markStroke / zoom.scale) }
+                    drawNoteMarkers(
+                        markers = noteMarkers(notes, layout, markerSize / zoom.scale, markerInset / zoom.scale),
+                        size = markerSize / zoom.scale,
+                        painter = notePainter,
+                        background = markerColor,
+                        content = markerContent,
+                    )
                     selection?.let { drawSelection(it, layout, accent, handleRadius / zoom.scale, markStroke / zoom.scale) }
                 },
         )
@@ -321,6 +402,7 @@ private fun PdfPage(
                 canConfirm = selection.canConfirm,
                 onColorSelected = markupActions::onColorSelected,
                 onConfirm = markupActions::onConfirmHighlight,
+                onAddNote = noteActions::onAddNoteFromSelection,
                 modifier = Modifier.floatNear(
                     anchor = screenBounds(selection.bounds, layout, zoom, if (selection.region) 0f else handleRadius * 2f),
                     gap = floatGap,
@@ -331,6 +413,8 @@ private fun PdfPage(
             val bounds = activeHighlight.rects.reduceOrNull(NormRect::union)
             if (bounds != null) {
                 HighlightMenu(
+                    hasNote = activeHighlightHasNote,
+                    onNote = noteActions::onAddNoteFromHighlight,
                     onDelete = markupActions::onDeleteHighlight,
                     modifier = Modifier.floatNear(
                         anchor = screenBounds(bounds, layout, zoom, 0f),
@@ -361,6 +445,57 @@ private fun DrawScope.drawOutlines(rects: List<NormRect>, color: Color, layout: 
     rects.forEach { rect ->
         val area = layout.toContent(rect)
         drawRect(color, area.topLeft, area.size, style = Stroke(width))
+    }
+}
+
+private class NoteMarker(val note: Note, val center: Offset)
+
+private fun noteMarkers(notes: List<Note>, layout: PageLayout, size: Float, inset: Float): List<NoteMarker> {
+    if (notes.isEmpty()) return emptyList()
+    val area = layout.page
+    val x = area.right - inset - size / 2f
+    val maxTop = (area.bottom - inset - size).coerceAtLeast(area.top)
+    var nextTop = area.top + inset
+    return notes.sortedBy { it.anchor.rect.top }.map { note ->
+        val anchorTop = area.top + note.anchor.rect.top * area.height
+        val top = maxOf(anchorTop, nextTop).coerceAtMost(maxTop)
+        nextTop = top + size + inset
+        NoteMarker(note, Offset(x, top + size / 2f))
+    }
+}
+
+private fun noteAt(
+    notes: List<Note>,
+    layout: PageLayout,
+    zoom: ZoomState,
+    position: Offset,
+    size: Float,
+    inset: Float,
+    touchRadius: Float,
+): Note? {
+    val content = Offset((position.x - zoom.offsetX) / zoom.scale, (position.y - zoom.offsetY) / zoom.scale)
+    val limit = touchRadius / zoom.scale
+    return noteMarkers(notes, layout, size / zoom.scale, inset / zoom.scale)
+        .map { it to (it.center - content).getDistance() }
+        .filter { it.second <= limit }
+        .minByOrNull { it.second }
+        ?.first
+        ?.note
+}
+
+private fun DrawScope.drawNoteMarkers(
+    markers: List<NoteMarker>,
+    size: Float,
+    painter: Painter,
+    background: Color,
+    content: Color,
+) {
+    val icon = size * NOTE_ICON_RATIO
+    markers.forEach { marker ->
+        drawCircle(background, size / 2f, marker.center)
+        translate(marker.center.x - icon / 2f, marker.center.y - icon / 2f) {
+            with(painter) { draw(Size(icon, icon), colorFilter = ColorFilter.tint(content)) }
+        }
     }
 }
 
@@ -516,6 +651,7 @@ private fun SelectionPalette(
     canConfirm: Boolean,
     onColorSelected: (Int) -> Unit,
     onConfirm: () -> Unit,
+    onAddNote: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Surface(
@@ -554,6 +690,12 @@ private fun SelectionPalette(
                         .semantics { contentDescription = label },
                 )
             }
+            IconButton(onClick = onAddNote, enabled = canConfirm) {
+                Icon(
+                    painter = painterResource(R.drawable.ic_note_add),
+                    contentDescription = stringResource(R.string.note_add),
+                )
+            }
             IconButton(onClick = onConfirm, enabled = canConfirm) {
                 Icon(
                     painter = painterResource(R.drawable.ic_check),
@@ -565,21 +707,190 @@ private fun SelectionPalette(
 }
 
 @Composable
-private fun HighlightMenu(onDelete: () -> Unit, modifier: Modifier = Modifier) {
+private fun HighlightMenu(
+    hasNote: Boolean,
+    onNote: () -> Unit,
+    onDelete: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     Surface(
         modifier = modifier,
         shape = RoundedCornerShape(24.dp),
         tonalElevation = 6.dp,
         shadowElevation = 6.dp,
     ) {
-        TextButton(onClick = onDelete, modifier = Modifier.padding(horizontal = 4.dp)) {
-            Icon(
-                painter = painterResource(R.drawable.ic_delete),
-                contentDescription = null,
-                modifier = Modifier.size(18.dp),
+        Row(modifier = Modifier.padding(horizontal = 4.dp)) {
+            TextButton(onClick = onNote) {
+                Icon(
+                    painter = painterResource(if (hasNote) R.drawable.ic_note else R.drawable.ic_note_add),
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp),
+                )
+                Spacer(Modifier.width(8.dp))
+                Text(stringResource(if (hasNote) R.string.note_view else R.string.note_add))
+            }
+            TextButton(onClick = onDelete) {
+                Icon(
+                    painter = painterResource(R.drawable.ic_delete),
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp),
+                )
+                Spacer(Modifier.width(8.dp))
+                Text(stringResource(R.string.highlight_delete))
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun NoteSheet(editor: NoteEditor, actions: NoteActions) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val scope = rememberCoroutineScope()
+    val focusRequester = remember { FocusRequester() }
+    var body by rememberSaveable(editor.key) { mutableStateOf(editor.body) }
+    val isNew = editor.noteId == null
+    val canSave = body.isNotBlank() && body.trim() != editor.body
+
+    fun hideThen(action: () -> Unit) {
+        scope.launch { sheetState.hide() }.invokeOnCompletion { action() }
+    }
+
+    LaunchedEffect(editor.key) {
+        if (isNew) focusRequester.requestFocus()
+    }
+
+    ModalBottomSheet(onDismissRequest = actions::onDismissNote, sheetState = sheetState) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .imePadding()
+                .padding(start = 24.dp, end = 24.dp, bottom = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = stringResource(if (isNew) R.string.note_new else R.string.note_title),
+                    style = MaterialTheme.typography.titleLarge,
+                )
+                Text(
+                    text = stringResource(R.string.note_page, editor.page + 1),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            editor.anchor.snippet?.let { snippet ->
+                Surface(
+                    color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    shape = RoundedCornerShape(8.dp),
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(
+                        text = snippet,
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontStyle = FontStyle.Italic,
+                        maxLines = 4,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.padding(12.dp),
+                    )
+                }
+            }
+            OutlinedTextField(
+                value = body,
+                onValueChange = { body = it },
+                placeholder = { Text(stringResource(R.string.note_placeholder)) },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 120.dp)
+                    .focusRequester(focusRequester),
             )
-            Spacer(Modifier.width(8.dp))
-            Text(stringResource(R.string.highlight_delete))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                if (!isNew) {
+                    TextButton(onClick = { hideThen(actions::onDeleteNote) }) {
+                        Icon(
+                            painter = painterResource(R.drawable.ic_delete),
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp),
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text(stringResource(R.string.note_delete))
+                    }
+                }
+                Spacer(Modifier.weight(1f))
+                TextButton(onClick = { hideThen(actions::onDismissNote) }) {
+                    Text(stringResource(R.string.action_cancel))
+                }
+                Button(onClick = { hideThen { actions.onSaveNote(body) } }, enabled = canSave) {
+                    Text(stringResource(R.string.note_save))
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun NotesListSheet(notes: List<Note>, actions: NoteActions) {
+    val sheetState = rememberModalBottomSheetState()
+    val scope = rememberCoroutineScope()
+
+    ModalBottomSheet(onDismissRequest = actions::onHideNotes, sheetState = sheetState) {
+        Text(
+            text = stringResource(R.string.notes_title),
+            style = MaterialTheme.typography.titleLarge,
+            modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
+        )
+        if (notes.isEmpty()) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp, vertical = 32.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Text(
+                    text = stringResource(R.string.notes_empty),
+                    style = MaterialTheme.typography.titleMedium,
+                )
+                Text(
+                    text = stringResource(R.string.notes_empty_hint),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        } else {
+            LazyColumn(modifier = Modifier.fillMaxWidth()) {
+                items(notes, key = { it.id }) { note ->
+                    ListItem(
+                        overlineContent = { Text(stringResource(R.string.note_page, note.page + 1)) },
+                        headlineContent = {
+                            Text(text = note.body, maxLines = 3, overflow = TextOverflow.Ellipsis)
+                        },
+                        supportingContent = note.anchor.snippet?.let { snippet ->
+                            {
+                                Text(
+                                    text = snippet,
+                                    fontStyle = FontStyle.Italic,
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            }
+                        },
+                        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                        modifier = Modifier.clickable {
+                            scope.launch { sheetState.hide() }.invokeOnCompletion { actions.onJumpToNote(note.id) }
+                        },
+                    )
+                }
+            }
         }
     }
 }
@@ -591,12 +902,17 @@ private val FloatGap = 12.dp
 private val FloatMargin = 8.dp
 private const val SELECTION_ALPHA = 0.6f
 private const val HANDLE_INSET_PX = 1f
+private val NoteMarkerSize = 22.dp
+private val NoteMarkerInset = 6.dp
+private val NoteMarkerTouchRadius = 24.dp
+private const val NOTE_ICON_RATIO = 0.6f
 
 @Composable
 private fun ReaderTopBar(
     visible: Boolean,
     title: String,
     onBack: () -> Unit,
+    onShowNotes: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     AnimatedVisibility(
@@ -624,8 +940,16 @@ private fun ReaderTopBar(
                     style = MaterialTheme.typography.titleMedium,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.padding(end = 16.dp),
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(end = 8.dp),
                 )
+                IconButton(onClick = onShowNotes) {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_notes),
+                        contentDescription = stringResource(R.string.notes_title),
+                    )
+                }
             }
         }
     }
@@ -708,8 +1032,11 @@ private fun ReaderReadyPreview() {
             detail = null,
             markup = MarkupState(),
             markupActions = MarkupActions.None,
+            notes = NotesUiState(),
+            noteActions = NoteActions.None,
             onBack = {},
             onPageSettled = {},
+            onPageRequestHandled = {},
             onTransform = { _, _, _ -> },
             onDoubleTap = {},
             onTap = {},
@@ -728,8 +1055,11 @@ private fun ReaderErrorPreview() {
             detail = null,
             markup = MarkupState(),
             markupActions = MarkupActions.None,
+            notes = NotesUiState(),
+            noteActions = NoteActions.None,
             onBack = {},
             onPageSettled = {},
+            onPageRequestHandled = {},
             onTransform = { _, _, _ -> },
             onDoubleTap = {},
             onTap = {},

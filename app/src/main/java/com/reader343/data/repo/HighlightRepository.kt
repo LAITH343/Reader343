@@ -52,28 +52,12 @@ class HighlightRepository @Inject constructor(
 
     private fun encodeRects(rects: List<NormRect>): String {
         val array = JSONArray()
-        rects.forEach { rect ->
-            array.put(
-                JSONArray()
-                    .put(rect.left.toDouble())
-                    .put(rect.top.toDouble())
-                    .put(rect.right.toDouble())
-                    .put(rect.bottom.toDouble()),
-            )
-        }
+        rects.forEach { array.put(it.toJson()) }
         return array.toString()
     }
 
     private fun decodeRects(json: String): List<NormRect>? = runCatching {
         val array = JSONArray(json)
-        List(array.length()) { i ->
-            val item = array.getJSONArray(i)
-            NormRect(
-                left = item.getDouble(0).toFloat(),
-                top = item.getDouble(1).toFloat(),
-                right = item.getDouble(2).toFloat(),
-                bottom = item.getDouble(3).toFloat(),
-            )
-        }
+        List(array.length()) { i -> array.getJSONArray(i).toNormRect() }
     }.getOrNull()
 }

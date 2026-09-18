@@ -28,6 +28,17 @@
     <string name="highlight_color_blue">Blue</string>
     <string name="highlight_color_pink">Pink</string>
     <string name="highlight_color_orange">Orange</string>
+    <string name="notes_title">Notes</string>
+    <string name="notes_empty">No notes yet</string>
+    <string name="notes_empty_hint">Long-press text or tap a highlight to add a note.</string>
+    <string name="note_new">New note</string>
+    <string name="note_title">Note</string>
+    <string name="note_page">Page %1$d</string>
+    <string name="note_placeholder">Write a note</string>
+    <string name="note_save">Save</string>
+    <string name="note_add">Add note</string>
+    <string name="note_view">View note</string>
+    <string name="note_delete">Delete</string>
     <string name="stats_title">Stats</string>
     <string name="action_stats">Stats</string>
     <string name="action_back">Back</string>
