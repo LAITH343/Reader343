@@ -4,15 +4,19 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.reader343.data.repo.SettingsRepository
 import com.reader343.data.repo.StatsRepository
+import com.reader343.data.repo.UpdateRepository
 import com.reader343.domain.AppLanguage
 import com.reader343.domain.AppSettings
 import com.reader343.domain.GoalContext
 import com.reader343.domain.PageAppearance
 import com.reader343.domain.ThemeMode
+import com.reader343.update.UpdateSummary
+import com.reader343.update.summary
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.time.LocalTime
@@ -27,6 +31,7 @@ data class SettingsUiState(
 class SettingsViewModel @Inject constructor(
     private val repository: SettingsRepository,
     statsRepository: StatsRepository,
+    updateRepository: UpdateRepository,
 ) : ViewModel() {
 
     val uiState: StateFlow<SettingsUiState?> = combine(
@@ -34,6 +39,10 @@ class SettingsViewModel @Inject constructor(
         statsRepository.observeGoalContext(),
         ::SettingsUiState,
     ).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    val update: StateFlow<UpdateSummary?> = updateRepository.status
+        .map { it.summary() }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     fun setTheme(value: ThemeMode) = update { repository.setTheme(value) }
 

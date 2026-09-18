@@ -38,6 +38,7 @@ data class AppColors(
     val heat2: Color,
     val heat3: Color,
     val danger: Color,
+    val neutralTx: Color,
     val amber: AmberColors,
     val scrim: Color,
 ) {
@@ -51,6 +52,7 @@ data class AppColors(
     val accLtTint16: Color get() = LightTintBase.copy(alpha = 0.16f)
     val accLtTint22: Color get() = LightTintBase.copy(alpha = 0.22f)
     val accLtTint30: Color get() = LightTintBase.copy(alpha = 0.30f)
+    val neutralTint14: Color get() = ink2.copy(alpha = 0.14f)
     val heatRamp: List<Color> get() = listOf(surf0, heat2, heat3, accMid, acc)
 }
 
@@ -83,6 +85,7 @@ val DarkAppColors = AppColors(
     heat2 = Color(0xFF332E5E),
     heat3 = Color(0xFF4B4189),
     danger = Color(0xFFE39AA6),
+    neutralTx = Color(0xFFD5D6E6),
     amber = AmberColors(
         bar = Color(0xFFF6BE48),
         fill = Color(0x24F6BE48),
@@ -117,6 +120,7 @@ val LightAppColors = AppColors(
     heat2 = Color(0xFFCFC7EA),
     heat3 = Color(0xFFA99BDA),
     danger = Color(0xFFA03042),
+    neutralTx = Color(0xFF45435A),
     amber = AmberColors(
         bar = Color(0xFFD99A1E),
         fill = Color(0x2EF6BE48),

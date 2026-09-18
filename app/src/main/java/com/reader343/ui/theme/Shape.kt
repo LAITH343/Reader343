@@ -22,6 +22,7 @@ data class AppShapes(
     val control: Shape = RoundedCornerShape(13.dp),
     val button: Shape = RoundedCornerShape(14.dp),
     val stepper: Shape = RoundedCornerShape(16.dp),
+    val badgeTile: Shape = RoundedCornerShape(17.dp),
     val listCard: Shape = RoundedCornerShape(18.dp),
     val card: Shape = RoundedCornerShape(20.dp),
     val hero: Shape = RoundedCornerShape(22.dp),

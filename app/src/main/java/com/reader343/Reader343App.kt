@@ -4,9 +4,11 @@ import android.app.Application
 import androidx.hilt.work.HiltWorkerFactory
 import androidx.work.Configuration
 import com.reader343.data.repo.SettingsRepository
+import com.reader343.data.repo.UpdateRepository
 import com.reader343.di.ApplicationScope
 import com.reader343.reminders.ReminderNotifier
 import com.reader343.reminders.ReminderScheduler
+import com.reader343.update.UpdateCheckWorker
 import dagger.hilt.android.HiltAndroidApp
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -30,6 +32,9 @@ class Reader343App : Application(), Configuration.Provider {
     lateinit var reminderNotifier: ReminderNotifier
 
     @Inject
+    lateinit var updateRepository: UpdateRepository
+
+    @Inject
     @ApplicationScope
     lateinit var appScope: CoroutineScope
 
@@ -50,5 +55,7 @@ class Reader343App : Application(), Configuration.Provider {
                 .distinctUntilChanged()
                 .collect { reminderScheduler.sync(it) }
         }
+        UpdateCheckWorker.schedule(this)
+        appScope.launch { updateRepository.checkIfStale() }
     }
 }

@@ -95,9 +95,11 @@ fun HomeRoute(
     onOpenNotes: (Long) -> Unit,
     onOpenLibrary: () -> Unit,
     onOpenSettings: () -> Unit,
+    onOpenUpdate: () -> Unit,
     viewModel: LibraryViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val updateVersion by viewModel.updateVersion.collectAsStateWithLifecycle()
     val importing by viewModel.importing.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
     val resources = LocalResources.current
@@ -126,6 +128,8 @@ fun HomeRoute(
         onOpenSettings = onOpenSettings,
         onSetGoal = { goalSheet = true },
         onRetry = viewModel::retry,
+        updateVersion = updateVersion,
+        onOpenUpdate = onOpenUpdate,
     )
 
     DailyGoalSheetHost(visible = goalSheet, onDismiss = { goalSheet = false })
@@ -151,7 +155,7 @@ fun HomeScreen(
     onSetGoal: () -> Unit,
     onRetry: () -> Unit,
     modifier: Modifier = Modifier,
-    updateAvailable: Boolean = false,
+    updateVersion: String? = null,
     onOpenUpdate: () -> Unit = {},
 ) {
     Scaffold(
@@ -176,7 +180,7 @@ fun HomeScreen(
             ) {
                 item(key = "header") {
                     HomeHeader(
-                        updateAvailable = updateAvailable,
+                        updateVersion = updateVersion,
                         onOpenUpdate = onOpenUpdate,
                         onOpenSettings = onOpenSettings,
                     )
@@ -248,7 +252,7 @@ private fun LazyListScope.homeContent(
 
 @Composable
 private fun HomeHeader(
-    updateAvailable: Boolean,
+    updateVersion: String?,
     onOpenUpdate: () -> Unit,
     onOpenSettings: () -> Unit,
 ) {
@@ -270,10 +274,10 @@ private fun HomeHeader(
             Text(text = stringResource(R.string.home_title), style = MaterialTheme.appType.screenTitle, color = colors.ink)
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            if (updateAvailable) {
+            if (updateVersion != null) {
                 IconBadgeButton(
                     icon = R.drawable.ic_ph_download_simple,
-                    contentDescription = stringResource(R.string.home_update_available),
+                    contentDescription = stringResource(R.string.home_update_available_version, updateVersion),
                     onClick = onOpenUpdate,
                     tone = IconButtonTone.Accent,
                     badge = true,
@@ -599,7 +603,7 @@ private fun HomePreview() {
             onOpenSettings = {},
             onSetGoal = {},
             onRetry = {},
-            updateAvailable = true,
+            updateVersion = "1.1",
         )
     }
 }

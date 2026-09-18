@@ -34,6 +34,7 @@ import com.reader343.ui.reader.ReaderRoute
 import com.reader343.ui.settings.SettingsRoute
 import com.reader343.ui.stats.StatsRoute
 import com.reader343.ui.theme.appColors
+import com.reader343.ui.update.UpdateRoute
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
 
@@ -44,6 +45,7 @@ object Routes {
     const val NOTES = "notes/{bookId}"
     const val STATS = "stats"
     const val SETTINGS = "settings"
+    const val UPDATE = "update"
     const val ARG_BOOK_ID = "bookId"
     const val ARG_PAGE = "page"
     const val RESULT_PAGE = "resultPage"
@@ -94,6 +96,7 @@ fun AppNav(continueRequests: Flow<Long?> = emptyFlow()) {
                         onOpenNotes = { navController.navigateFrom(entry, Routes.notes(it)) },
                         onOpenLibrary = { navController.tabFrom(entry, TopLevelTab.Library) },
                         onOpenSettings = { navController.tabFrom(entry, TopLevelTab.Settings) },
+                        onOpenUpdate = { navController.navigateFrom(entry, Routes.UPDATE) },
                     )
                 }
                 composable(Routes.LIBRARY) { entry ->
@@ -137,8 +140,11 @@ fun AppNav(continueRequests: Flow<Long?> = emptyFlow()) {
                         onOpenBook = { navController.navigateFrom(entry, Routes.reader(it)) },
                     )
                 }
-                composable(Routes.SETTINGS) {
-                    SettingsRoute()
+                composable(Routes.SETTINGS) { entry ->
+                    SettingsRoute(onOpenUpdate = { navController.navigateFrom(entry, Routes.UPDATE) })
+                }
+                composable(Routes.UPDATE) { entry ->
+                    UpdateRoute(onBack = { navController.popFrom(entry) })
                 }
             }
         }

@@ -6,6 +6,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.reader343.data.repo.LibraryRepository
 import com.reader343.data.repo.SettingsRepository
+import com.reader343.data.repo.UpdateRepository
 import com.reader343.data.repo.StatsRepository
 import com.reader343.domain.AppSettings
 import com.reader343.domain.BookWithProgress
@@ -70,7 +71,12 @@ class LibraryViewModel @Inject constructor(
     private val repository: LibraryRepository,
     private val statsRepository: StatsRepository,
     private val settingsRepository: SettingsRepository,
+    updateRepository: UpdateRepository,
 ) : ViewModel() {
+
+    val updateVersion: StateFlow<String?> = updateRepository.updateAvailable
+        .map { it?.versionName }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     private val reload = MutableStateFlow(0)
 

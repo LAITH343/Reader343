@@ -1,6 +1,7 @@
 package com.reader343.ui.settings
 
 import android.text.format.DateFormat
+import android.text.format.Formatter
 import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
 import androidx.compose.foundation.background
@@ -18,12 +19,14 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.selection.toggleable
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -76,6 +79,8 @@ import com.reader343.domain.ThemeMode
 import com.reader343.ui.components.AppCard
 import com.reader343.ui.components.AppSwitch
 import com.reader343.ui.components.LoadingState
+import com.reader343.ui.components.Pill
+import com.reader343.ui.components.PillTone
 import com.reader343.ui.components.SectionLabel
 import com.reader343.ui.components.SelectableSurface
 import com.reader343.ui.components.appClickable
@@ -89,6 +94,7 @@ import com.reader343.ui.theme.Reader343Theme
 import com.reader343.ui.theme.appColors
 import com.reader343.ui.theme.appShapes
 import com.reader343.ui.theme.appType
+import com.reader343.update.UpdateSummary
 import kotlinx.coroutines.launch
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
@@ -98,9 +104,11 @@ enum class ReminderKind { Daily, Streak }
 
 @Composable
 fun SettingsRoute(
+    onOpenUpdate: () -> Unit,
     viewModel: SettingsViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val update by viewModel.update.collectAsStateWithLifecycle()
     val access = rememberNotificationAccess()
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
@@ -136,7 +144,9 @@ fun SettingsRoute(
                 if (enabled && access.needsPrompt) pendingReminder = kind else setReminder(kind, enabled)
             },
             onReminderTime = viewModel::setReminderTime,
+            onOpenUpdate = onOpenUpdate,
         ),
+        update = update,
         snackbarHostState = snackbarHostState,
         notificationsBlocked = !access.allowed,
         onFixNotifications = {
@@ -190,6 +200,7 @@ class SettingsActions(
     val onEditGoal: () -> Unit,
     val onReminder: (ReminderKind, Boolean) -> Unit,
     val onReminderTime: (LocalTime) -> Unit,
+    val onOpenUpdate: () -> Unit,
 )
 
 @Composable
@@ -200,7 +211,7 @@ fun SettingsScreen(
     snackbarHostState: SnackbarHostState = remember { SnackbarHostState() },
     notificationsBlocked: Boolean = false,
     onFixNotifications: () -> Unit = {},
-    aboutSlot: (@Composable ColumnScope.() -> Unit)? = null,
+    update: UpdateSummary? = null,
 ) {
     var editTime by rememberSaveable { mutableStateOf(false) }
 
@@ -233,7 +244,7 @@ fun SettingsScreen(
                     onEditTime = { editTime = true },
                     notificationsBlocked = notificationsBlocked,
                     onFixNotifications = onFixNotifications,
-                    aboutSlot = aboutSlot,
+                    update = update,
                 )
             }
         }
@@ -270,7 +281,7 @@ private fun LazyListScope.settingsContent(
     onEditTime: () -> Unit,
     notificationsBlocked: Boolean,
     onFixNotifications: () -> Unit,
-    aboutSlot: (@Composable ColumnScope.() -> Unit)?,
+    update: UpdateSummary?,
 ) {
     val settings = state.settings
     val reminders = settings.reminders
@@ -382,10 +393,8 @@ private fun LazyListScope.settingsContent(
     item(key = "about_label") { GroupLabel(R.string.settings_about) }
     item(key = "about") {
         SettingsGroup {
-            if (aboutSlot != null) {
-                aboutSlot()
-                GroupDivider()
-            }
+            UpdateRow(update = update, onClick = actions.onOpenUpdate)
+            GroupDivider()
             AboutRow()
         }
     }
@@ -610,6 +619,57 @@ private fun WarningRow(
 }
 
 @Composable
+private fun UpdateRow(
+    update: UpdateSummary?,
+    onClick: () -> Unit,
+) {
+    val colors = MaterialTheme.appColors
+    val context = LocalContext.current
+    val hint = when {
+        update == null -> stringResource(R.string.settings_update_hint_unknown)
+        update.available -> stringResource(
+            R.string.settings_update_hint_available,
+            update.versionName,
+            Formatter.formatShortFileSize(context, update.sizeBytes),
+        )
+        else -> stringResource(R.string.settings_update_hint_current, update.versionName, formatNumber(update.versionCode))
+    }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 64.dp)
+            .appClickable(shape = RectangleShape, onClick = onClick)
+            .padding(horizontal = RowPadding, vertical = 14.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box {
+            IconTile(icon = R.drawable.ic_ph_download_simple, container = colors.accTint16, content = colors.accTx)
+            if (update?.available == true) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .offset(x = 2.dp, y = (-2).dp)
+                        .size(10.dp)
+                        .background(colors.surf, CircleShape)
+                        .padding(2.dp)
+                        .background(colors.acc, CircleShape),
+                )
+            }
+        }
+        RowText(title = stringResource(R.string.settings_app_update), body = hint, modifier = Modifier.weight(1f))
+        if (update != null) {
+            Pill(
+                text = stringResource(
+                    if (update.available) R.string.settings_update_badge_update else R.string.settings_update_badge_current,
+                ),
+                tone = PillTone.Accent,
+            )
+        }
+    }
+}
+
+@Composable
 private fun AboutRow() {
     val colors = MaterialTheme.appColors
     Row(
@@ -740,13 +800,15 @@ private val PreviewState = SettingsUiState(
     goalContext = GoalContext(metLastWeek = 5, avgSessionMs = 22 * MINUTE_MS, pagesPerDay = 15),
 )
 
-private val PreviewActions = SettingsActions({}, {}, {}, {}, { _, _ -> }, {})
+private val PreviewActions = SettingsActions({}, {}, {}, {}, { _, _ -> }, {}, {})
+
+private val PreviewUpdate = UpdateSummary(available = true, versionName = "1.1", versionCode = 118, sizeBytes = 24_600_000L)
 
 @Preview(name = "Dark", showBackground = true, heightDp = 1400)
 @Composable
 private fun SettingsDarkPreview() {
     Reader343Theme(darkTheme = true) {
-        SettingsScreen(state = PreviewState, actions = PreviewActions, notificationsBlocked = true)
+        SettingsScreen(state = PreviewState, actions = PreviewActions, notificationsBlocked = true, update = PreviewUpdate)
     }
 }
 
@@ -754,7 +816,11 @@ private fun SettingsDarkPreview() {
 @Composable
 private fun SettingsLightPreview() {
     Reader343Theme(darkTheme = false) {
-        SettingsScreen(state = PreviewState, actions = PreviewActions)
+        SettingsScreen(
+            state = PreviewState,
+            actions = PreviewActions,
+            update = UpdateSummary(available = false, versionName = "1.0", versionCode = 1, sizeBytes = 0L),
+        )
     }
 }
 
