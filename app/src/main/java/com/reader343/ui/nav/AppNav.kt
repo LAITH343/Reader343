@@ -88,7 +88,6 @@ fun AppNav(continueRequests: Flow<Long?> = emptyFlow()) {
                         onOpenNotes = { navController.navigateFrom(entry, Routes.reader(it, notes = true)) },
                         onOpenLibrary = { navController.tabFrom(entry, TopLevelTab.Library) },
                         onOpenSettings = { navController.tabFrom(entry, TopLevelTab.Settings) },
-                        onSetGoal = { navController.tabFrom(entry, TopLevelTab.Settings) },
                     )
                 }
                 composable(Routes.LIBRARY) { entry ->

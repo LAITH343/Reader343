@@ -145,9 +145,9 @@ private fun SwitchPreview() {
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Column(modifier = Modifier.weight(1f)) {
-                    Text(text = stringResource(R.string.settings_reminders_enabled), style = MaterialTheme.typography.titleSmall)
+                    Text(text = stringResource(R.string.settings_daily_reminder), style = MaterialTheme.typography.titleSmall)
                     Text(
-                        text = stringResource(R.string.settings_reminders_enabled_hint),
+                        text = stringResource(R.string.settings_daily_reminder_hint),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.appColors.ink3,
                     )
@@ -160,7 +160,7 @@ private fun SwitchPreview() {
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
-                    text = stringResource(R.string.settings_streak_reminder),
+                    text = stringResource(R.string.settings_streak_alert),
                     style = MaterialTheme.typography.titleSmall,
                     modifier = Modifier.weight(1f),
                 )

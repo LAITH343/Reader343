@@ -127,3 +127,9 @@ val LightAppColors = AppColors(
 )
 
 val LocalAppColors = staticCompositionLocalOf { DarkAppColors }
+
+object PaperSwatch {
+    val Normal = Color(0xFFF3F1EA)
+    val Night = Color(0xFF22242F)
+    val Sepia = Color(0xFFE8D9BD)
+}

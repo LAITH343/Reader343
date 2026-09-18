@@ -82,6 +82,7 @@ import com.reader343.ui.components.formatWeekday
 import com.reader343.ui.components.riseIn
 import com.reader343.ui.theme.Reader343Theme
 import com.reader343.ui.theme.appColors
+import com.reader343.ui.settings.DailyGoalSheetHost
 import com.reader343.ui.theme.appShapes
 import com.reader343.ui.theme.appType
 import java.time.LocalDate
@@ -94,7 +95,6 @@ fun HomeRoute(
     onOpenNotes: (Long) -> Unit,
     onOpenLibrary: () -> Unit,
     onOpenSettings: () -> Unit,
-    onSetGoal: () -> Unit,
     viewModel: LibraryViewModel = hiltViewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -113,6 +113,7 @@ fun HomeRoute(
         }
     }
     var menuBookId by rememberSaveable { mutableStateOf<Long?>(null) }
+    var goalSheet by rememberSaveable { mutableStateOf(false) }
 
     HomeScreen(
         state = state,
@@ -123,9 +124,11 @@ fun HomeRoute(
         onOpenMenu = { menuBookId = it },
         onOpenLibrary = onOpenLibrary,
         onOpenSettings = onOpenSettings,
-        onSetGoal = onSetGoal,
+        onSetGoal = { goalSheet = true },
         onRetry = viewModel::retry,
     )
+
+    DailyGoalSheetHost(visible = goalSheet, onDismiss = { goalSheet = false })
 
     BookMenuHost(
         books = (state as? LibraryUiState.Content)?.books.orEmpty(),

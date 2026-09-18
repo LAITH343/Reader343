@@ -22,11 +22,24 @@ data class DailyGoal(
 }
 
 data class ReminderSettings(
-    val enabled: Boolean = false,
-    val readingTime: LocalTime = LocalTime.of(20, 0),
-    val streakEnabled: Boolean = true,
-    val streakTime: LocalTime = LocalTime.of(19, 0),
-)
+    val dailyEnabled: Boolean = false,
+    val streakEnabled: Boolean = false,
+    val time: LocalTime = DefaultReminderTime,
+) {
+    val anyEnabled: Boolean get() = dailyEnabled || streakEnabled
+
+    val streakTime: LocalTime get() = streakAlertTime(time)
+}
+
+fun streakAlertTime(time: LocalTime): LocalTime {
+    val shifted = time.plusHours(STREAK_DELAY_HOURS)
+    return if (shifted.isBefore(time)) LatestStreakAlert else shifted
+}
+
+val DefaultReminderTime: LocalTime = LocalTime.of(19, 0)
+
+private val LatestStreakAlert: LocalTime = LocalTime.of(23, 59)
+private const val STREAK_DELAY_HOURS = 2L
 
 data class AppSettings(
     val theme: ThemeMode = ThemeMode.System,

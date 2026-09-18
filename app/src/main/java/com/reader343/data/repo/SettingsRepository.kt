@@ -45,16 +45,12 @@ class SettingsRepository @Inject constructor(
         it[Keys.GOAL_VALUE] = value.value.coerceAtLeast(0)
     }
 
-    suspend fun setRemindersEnabled(value: Boolean) = edit { it[Keys.REMINDERS_ENABLED] = value }
+    suspend fun setDailyReminder(value: Boolean) = edit { it[Keys.DAILY_REMINDER] = value }
+
+    suspend fun setStreakAlert(value: Boolean) = edit { it[Keys.STREAK_ALERT] = value }
 
     suspend fun setReminderTime(value: LocalTime) = edit {
         it[Keys.REMINDER_TIME] = value.hour * MINUTES_PER_HOUR + value.minute
-    }
-
-    suspend fun setStreakReminder(value: Boolean) = edit { it[Keys.STREAK_REMINDER] = value }
-
-    suspend fun setStreakTime(value: LocalTime) = edit {
-        it[Keys.STREAK_TIME] = value.hour * MINUTES_PER_HOUR + value.minute
     }
 
     private suspend fun edit(block: (MutablePreferences) -> Unit) {
@@ -72,10 +68,9 @@ class SettingsRepository @Inject constructor(
                 value = this[Keys.GOAL_VALUE] ?: defaults.goal.value,
             ),
             reminders = ReminderSettings(
-                enabled = this[Keys.REMINDERS_ENABLED] ?: defaults.reminders.enabled,
-                readingTime = this[Keys.REMINDER_TIME]?.let(::timeOf) ?: defaults.reminders.readingTime,
-                streakEnabled = this[Keys.STREAK_REMINDER] ?: defaults.reminders.streakEnabled,
-                streakTime = this[Keys.STREAK_TIME]?.let(::timeOf) ?: defaults.reminders.streakTime,
+                dailyEnabled = this[Keys.DAILY_REMINDER] ?: defaults.reminders.dailyEnabled,
+                streakEnabled = this[Keys.STREAK_ALERT] ?: defaults.reminders.streakEnabled,
+                time = this[Keys.REMINDER_TIME]?.let(::timeOf) ?: defaults.reminders.time,
             ),
         )
     }
@@ -94,10 +89,9 @@ class SettingsRepository @Inject constructor(
         val LANGUAGE = stringPreferencesKey("language")
         val GOAL_UNIT = stringPreferencesKey("goal_unit")
         val GOAL_VALUE = intPreferencesKey("goal_value")
-        val REMINDERS_ENABLED = booleanPreferencesKey("reminders_enabled")
-        val REMINDER_TIME = intPreferencesKey("reminder_time")
-        val STREAK_REMINDER = booleanPreferencesKey("streak_reminder")
-        val STREAK_TIME = intPreferencesKey("streak_time")
+        val DAILY_REMINDER = booleanPreferencesKey("daily_reminder")
+        val STREAK_ALERT = booleanPreferencesKey("streak_alert")
+        val REMINDER_TIME = intPreferencesKey("reminder_at")
     }
 
     private companion object {

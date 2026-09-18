@@ -8,12 +8,14 @@ import com.reader343.domain.ActivityMetric
 import com.reader343.domain.BookStats
 import com.reader343.domain.DailyGoal
 import com.reader343.domain.DayStats
+import com.reader343.domain.GoalContext
 import com.reader343.domain.ReadingSession
 import com.reader343.domain.ReadingStats
 import com.reader343.domain.StreakSnapshot
 import com.reader343.domain.bestStreakDays
 import com.reader343.domain.currentStreak
 import com.reader343.domain.dailyStats
+import com.reader343.domain.goalContext
 import com.reader343.domain.goalHitRate
 import com.reader343.domain.strongestSlot
 import com.reader343.domain.toLocalDate
@@ -44,6 +46,15 @@ class StatsRepository @Inject constructor(
         ) { books, sessions, goal ->
             val zone = ZoneId.systemDefault()
             compute(books, sessions.map { it.toDomain() }, goal, LocalDate.now(zone), zone)
+        }.flowOn(Dispatchers.Default)
+
+    fun observeGoalContext(): Flow<GoalContext> =
+        combine(
+            sessionDao.observeFinished(),
+            settingsRepository.settings.map { it.goal }.distinctUntilChanged(),
+        ) { sessions, goal ->
+            val zone = ZoneId.systemDefault()
+            goalContext(sessions.map { it.toDomain() }, goal, LocalDate.now(zone), zone)
         }.flowOn(Dispatchers.Default)
 
     fun observeDailyActivity(metric: ActivityMetric): Flow<Map<LocalDate, Int>> =

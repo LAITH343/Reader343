@@ -8,10 +8,13 @@ enum class ReminderType(val workName: String, val notificationId: Int) {
     Streak("reminder_streak", 1002);
 
     fun isEnabled(settings: ReminderSettings): Boolean =
-        settings.enabled && (this == Reading || settings.streakEnabled)
+        when (this) {
+            Reading -> settings.dailyEnabled
+            Streak -> settings.streakEnabled
+        }
 
     fun timeOf(settings: ReminderSettings): LocalTime = when (this) {
-        Reading -> settings.readingTime
+        Reading -> settings.time
         Streak -> settings.streakTime
     }
 

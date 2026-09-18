@@ -1,25 +1,33 @@
 package com.reader343.ui.settings
 
 import android.text.format.DateFormat
+import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.selection.toggleable
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.ListItem
-import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -27,9 +35,8 @@ import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TimePicker
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberTimePickerState
-import androidx.compose.material3.rememberTopAppBarState
+import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -37,17 +44,23 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.reader343.BuildConfig
@@ -55,37 +68,52 @@ import com.reader343.R
 import com.reader343.domain.AppLanguage
 import com.reader343.domain.AppSettings
 import com.reader343.domain.DailyGoal
+import com.reader343.domain.GoalContext
 import com.reader343.domain.GoalUnit
 import com.reader343.domain.PageAppearance
+import com.reader343.domain.ReminderSettings
 import com.reader343.domain.ThemeMode
 import com.reader343.ui.components.AppCard
 import com.reader343.ui.components.AppSwitch
-import com.reader343.ui.components.AppTopBar
 import com.reader343.ui.components.LoadingState
-import com.reader343.ui.components.SectionHeader
-import com.reader343.ui.components.SegmentItem
-import com.reader343.ui.components.SegmentedControl
+import com.reader343.ui.components.SectionLabel
+import com.reader343.ui.components.SelectableSurface
+import com.reader343.ui.components.appClickable
 import com.reader343.ui.components.currentLocale
+import com.reader343.ui.components.disabledAlpha
+import com.reader343.ui.components.focusRing
 import com.reader343.ui.components.formatMinutes
 import com.reader343.ui.components.formatNumber
+import com.reader343.ui.theme.PaperSwatch
 import com.reader343.ui.theme.Reader343Theme
-import com.reader343.ui.theme.spacing
+import com.reader343.ui.theme.appColors
+import com.reader343.ui.theme.appShapes
+import com.reader343.ui.theme.appType
 import kotlinx.coroutines.launch
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 import java.time.format.DecimalStyle
 
+enum class ReminderKind { Daily, Streak }
+
 @Composable
 fun SettingsRoute(
     viewModel: SettingsViewModel = hiltViewModel(),
 ) {
-    val settings by viewModel.settings.collectAsStateWithLifecycle()
+    val state by viewModel.uiState.collectAsStateWithLifecycle()
     val access = rememberNotificationAccess()
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     val resources = LocalResources.current
-    var askPermission by rememberSaveable { mutableStateOf(false) }
+    var pendingReminder by rememberSaveable { mutableStateOf<ReminderKind?>(null) }
+    var goalSheet by rememberSaveable { mutableStateOf(false) }
 
+    val setReminder: (ReminderKind, Boolean) -> Unit = { kind, enabled ->
+        when (kind) {
+            ReminderKind.Daily -> viewModel.setDailyReminder(enabled)
+            ReminderKind.Streak -> viewModel.setStreakAlert(enabled)
+        }
+    }
     val showDenied: () -> Unit = {
         scope.launch {
             val result = snackbarHostState.showSnackbar(
@@ -98,18 +126,16 @@ fun SettingsRoute(
     }
 
     SettingsScreen(
-        settings = settings,
+        state = state,
         actions = SettingsActions(
             onTheme = viewModel::setTheme,
             onPageAppearance = viewModel::setPageAppearance,
             onLanguage = viewModel::setLanguage,
-            onGoal = viewModel::setGoal,
-            onRemindersEnabled = { enabled ->
-                if (enabled && access.needsPrompt) askPermission = true else viewModel.setRemindersEnabled(enabled)
+            onEditGoal = { goalSheet = true },
+            onReminder = { kind, enabled ->
+                if (enabled && access.needsPrompt) pendingReminder = kind else setReminder(kind, enabled)
             },
             onReminderTime = viewModel::setReminderTime,
-            onStreakReminder = viewModel::setStreakReminder,
-            onStreakTime = viewModel::setStreakTime,
         ),
         snackbarHostState = snackbarHostState,
         notificationsBlocked = !access.allowed,
@@ -122,15 +148,17 @@ fun SettingsRoute(
         },
     )
 
-    if (askPermission) {
+    DailyGoalSheetHost(visible = goalSheet, onDismiss = { goalSheet = false })
+
+    pendingReminder?.let { kind ->
         NotificationRationaleDialog(
             onConfirm = {
-                askPermission = false
+                pendingReminder = null
                 access.request { result ->
-                    if (result == PermissionResult.Granted) viewModel.setRemindersEnabled(true) else showDenied()
+                    if (result == PermissionResult.Granted) setReminder(kind, true) else showDenied()
                 }
             },
-            onDismiss = { askPermission = false },
+            onDismiss = { pendingReminder = null },
         )
     }
 }
@@ -151,6 +179,7 @@ private fun NotificationRationaleDialog(
         dismissButton = {
             TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_not_now)) }
         },
+        containerColor = MaterialTheme.appColors.surf,
     )
 }
 
@@ -158,371 +187,456 @@ class SettingsActions(
     val onTheme: (ThemeMode) -> Unit,
     val onPageAppearance: (PageAppearance) -> Unit,
     val onLanguage: (AppLanguage) -> Unit,
-    val onGoal: (DailyGoal) -> Unit,
-    val onRemindersEnabled: (Boolean) -> Unit,
+    val onEditGoal: () -> Unit,
+    val onReminder: (ReminderKind, Boolean) -> Unit,
     val onReminderTime: (LocalTime) -> Unit,
-    val onStreakReminder: (Boolean) -> Unit,
-    val onStreakTime: (LocalTime) -> Unit,
 )
 
-private enum class SettingsDialog { Goal, ReminderTime, StreakTime }
-
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
-    settings: AppSettings?,
+    state: SettingsUiState?,
     actions: SettingsActions,
     modifier: Modifier = Modifier,
     snackbarHostState: SnackbarHostState = remember { SnackbarHostState() },
     notificationsBlocked: Boolean = false,
     onFixNotifications: () -> Unit = {},
+    aboutSlot: (@Composable ColumnScope.() -> Unit)? = null,
 ) {
-    val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior(rememberTopAppBarState())
-    var dialog by rememberSaveable { mutableStateOf<SettingsDialog?>(null) }
+    var editTime by rememberSaveable { mutableStateOf(false) }
 
     Scaffold(
-        modifier = modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
-        topBar = {
-            AppTopBar(
-                title = stringResource(R.string.settings_title),
-                scrollBehavior = scrollBehavior,
-            )
-        },
+        modifier = modifier,
+        containerColor = MaterialTheme.appColors.bg,
         snackbarHost = { SnackbarHost(snackbarHostState) },
     ) { padding ->
-        if (settings == null) {
-            LoadingState(modifier = Modifier.padding(padding))
+        if (state == null) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding),
+            ) {
+                SettingsHeader()
+                LoadingState(Modifier.weight(1f))
+            }
         } else {
-            SettingsContent(
-                settings = settings,
-                actions = actions,
-                onEditGoal = { dialog = SettingsDialog.Goal },
-                onEditReminderTime = { dialog = SettingsDialog.ReminderTime },
-                onEditStreakTime = { dialog = SettingsDialog.StreakTime },
-                notificationsBlocked = notificationsBlocked,
-                onFixNotifications = onFixNotifications,
-                contentPadding = padding,
-            )
-        }
-    }
-
-    if (settings != null) {
-        when (dialog) {
-            SettingsDialog.Goal -> GoalDialog(
-                goal = settings.goal,
-                onConfirm = {
-                    actions.onGoal(it)
-                    dialog = null
-                },
-                onDismiss = { dialog = null },
-            )
-            SettingsDialog.ReminderTime -> ReminderTimeDialog(
-                title = stringResource(R.string.settings_reminder_time),
-                time = settings.reminders.readingTime,
-                onConfirm = {
-                    actions.onReminderTime(it)
-                    dialog = null
-                },
-                onDismiss = { dialog = null },
-            )
-            SettingsDialog.StreakTime -> ReminderTimeDialog(
-                title = stringResource(R.string.settings_streak_time),
-                time = settings.reminders.streakTime,
-                onConfirm = {
-                    actions.onStreakTime(it)
-                    dialog = null
-                },
-                onDismiss = { dialog = null },
-            )
-            null -> Unit
-        }
-    }
-}
-
-@Composable
-private fun SettingsContent(
-    settings: AppSettings,
-    actions: SettingsActions,
-    onEditGoal: () -> Unit,
-    onEditReminderTime: () -> Unit,
-    onEditStreakTime: () -> Unit,
-    notificationsBlocked: Boolean,
-    onFixNotifications: () -> Unit,
-    contentPadding: PaddingValues,
-) {
-    val spacing = MaterialTheme.spacing
-    val reminders = settings.reminders
-    LazyColumn(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(contentPadding),
-        contentPadding = PaddingValues(start = spacing.lg, end = spacing.lg, bottom = spacing.xl),
-        verticalArrangement = Arrangement.spacedBy(spacing.sm),
-    ) {
-        item(key = "appearance_header") { SectionHeader(text = stringResource(R.string.settings_appearance)) }
-        item(key = "appearance") {
-            SettingsGroup {
-                ChoiceRow(
-                    title = stringResource(R.string.settings_theme),
-                    options = ThemeMode.entries,
-                    selected = settings.theme,
-                    label = { it.labelRes },
-                    onSelect = actions.onTheme,
-                )
-                GroupDivider()
-                ChoiceRow(
-                    title = stringResource(R.string.settings_page_appearance),
-                    options = PageAppearance.entries,
-                    selected = settings.pageAppearance,
-                    label = { it.labelRes },
-                    onSelect = actions.onPageAppearance,
-                )
-                GroupDivider()
-                ChoiceRow(
-                    title = stringResource(R.string.settings_language),
-                    options = AppLanguage.entries,
-                    selected = settings.language,
-                    label = { it.labelRes },
-                    onSelect = actions.onLanguage,
-                )
-            }
-        }
-        item(key = "reading_header") { SectionHeader(text = stringResource(R.string.settings_reading)) }
-        item(key = "reading") {
-            SettingsGroup {
-                ValueRow(
-                    title = stringResource(R.string.settings_daily_goal),
-                    value = goalLabel(settings.goal),
-                    onClick = onEditGoal,
-                )
-            }
-        }
-        item(key = "reminders_header") { SectionHeader(text = stringResource(R.string.settings_reminders)) }
-        item(key = "reminders") {
-            SettingsGroup {
-                SwitchRow(
-                    title = stringResource(R.string.settings_reminders_enabled),
-                    summary = stringResource(R.string.settings_reminders_enabled_hint),
-                    checked = reminders.enabled,
-                    onCheckedChange = actions.onRemindersEnabled,
-                )
-                if (reminders.enabled && notificationsBlocked) {
-                    GroupDivider()
-                    WarningRow(
-                        title = stringResource(R.string.notifications_blocked),
-                        summary = stringResource(R.string.notifications_blocked_hint),
-                        onClick = onFixNotifications,
-                    )
-                }
-                GroupDivider()
-                ValueRow(
-                    title = stringResource(R.string.settings_reminder_time),
-                    value = formatTime(reminders.readingTime),
-                    enabled = reminders.enabled,
-                    onClick = onEditReminderTime,
-                )
-                GroupDivider()
-                SwitchRow(
-                    title = stringResource(R.string.settings_streak_reminder),
-                    summary = stringResource(R.string.settings_streak_reminder_hint),
-                    checked = reminders.streakEnabled,
-                    enabled = reminders.enabled,
-                    onCheckedChange = actions.onStreakReminder,
-                )
-                GroupDivider()
-                ValueRow(
-                    title = stringResource(R.string.settings_streak_time),
-                    value = formatTime(reminders.streakTime),
-                    enabled = reminders.enabled && reminders.streakEnabled,
-                    onClick = onEditStreakTime,
-                )
-            }
-        }
-        item(key = "about_header") { SectionHeader(text = stringResource(R.string.settings_about)) }
-        item(key = "about") {
-            SettingsGroup {
-                ValueRow(
-                    title = stringResource(R.string.app_name),
-                    value = stringResource(R.string.settings_version, BuildConfig.VERSION_NAME),
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(
+                    top = padding.calculateTopPadding(),
+                    bottom = padding.calculateBottomPadding() + 24.dp,
+                ),
+            ) {
+                item(key = "header") { SettingsHeader() }
+                settingsContent(
+                    state = state,
+                    actions = actions,
+                    onEditTime = { editTime = true },
+                    notificationsBlocked = notificationsBlocked,
+                    onFixNotifications = onFixNotifications,
+                    aboutSlot = aboutSlot,
                 )
             }
         }
     }
-}
 
-@Composable
-private fun SettingsGroup(content: @Composable () -> Unit) {
-    AppCard(modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(vertical = MaterialTheme.spacing.xs)) { content() }
-    }
-}
-
-@Composable
-private fun GroupDivider() {
-    HorizontalDivider(
-        modifier = Modifier.padding(horizontal = MaterialTheme.spacing.lg),
-        color = MaterialTheme.colorScheme.outlineVariant,
-    )
-}
-
-@Composable
-private fun <T> ChoiceRow(
-    title: String,
-    options: List<T>,
-    selected: T,
-    label: (T) -> Int,
-    onSelect: (T) -> Unit,
-) {
-    val spacing = MaterialTheme.spacing
-    Column(
-        modifier = Modifier.padding(horizontal = spacing.lg, vertical = spacing.md),
-        verticalArrangement = Arrangement.spacedBy(spacing.md),
-    ) {
-        Text(text = title, style = MaterialTheme.typography.bodyLarge)
-        SegmentedControl(
-            items = options.map { SegmentItem(stringResource(label(it))) },
-            selectedIndex = options.indexOf(selected),
-            onSelect = { onSelect(options[it]) },
-            modifier = Modifier.fillMaxWidth(),
+    if (state != null && editTime) {
+        ReminderTimeDialog(
+            time = state.settings.reminders.time,
+            onConfirm = {
+                actions.onReminderTime(it)
+                editTime = false
+            },
+            onDismiss = { editTime = false },
         )
     }
 }
 
 @Composable
-private fun ValueRow(
-    title: String,
-    value: String,
-    enabled: Boolean = true,
-    onClick: (() -> Unit)? = null,
+private fun SettingsHeader() {
+    Text(
+        text = stringResource(R.string.settings_title),
+        style = MaterialTheme.appType.screenTitle,
+        color = MaterialTheme.appColors.ink,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = ScreenPadding, top = 10.dp, end = ScreenPadding)
+            .semantics { heading() },
+    )
+}
+
+private fun LazyListScope.settingsContent(
+    state: SettingsUiState,
+    actions: SettingsActions,
+    onEditTime: () -> Unit,
+    notificationsBlocked: Boolean,
+    onFixNotifications: () -> Unit,
+    aboutSlot: (@Composable ColumnScope.() -> Unit)?,
 ) {
-    val clickable = if (onClick != null) {
-        Modifier.clickable(enabled = enabled, role = Role.Button, onClick = onClick)
-    } else {
-        Modifier
+    val settings = state.settings
+    val reminders = settings.reminders
+
+    item(key = "reading_label") { GroupLabel(R.string.settings_reading, top = 16.dp) }
+    item(key = "reading") {
+        SettingsGroup {
+            NavRow(
+                icon = R.drawable.ic_ph_target,
+                title = stringResource(R.string.settings_daily_goal),
+                subtitle = goalSummary(settings.goal, state.goalContext),
+                onClick = actions.onEditGoal,
+            )
+            GroupDivider()
+            ChoiceGroup(title = stringResource(R.string.settings_page_appearance)) {
+                PageAppearance.entries.forEach { mode ->
+                    SelectableSurface(
+                        selected = settings.pageAppearance == mode,
+                        onClick = { actions.onPageAppearance(mode) },
+                        modifier = Modifier.weight(1f),
+                        minHeight = 46.dp,
+                        contentPadding = PaddingValues(horizontal = 6.dp, vertical = 6.dp),
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(3.dp),
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(width = 22.dp, height = 14.dp)
+                                    .background(mode.swatch, MaterialTheme.appShapes.swatch)
+                                    .border(1.dp, MaterialTheme.appColors.handle, MaterialTheme.appShapes.swatch),
+                            )
+                            ChoiceText(stringResource(mode.labelRes))
+                        }
+                    }
+                }
+            }
+        }
     }
-    ListItem(
-        headlineContent = { Text(title) },
-        supportingContent = { Text(value) },
-        modifier = clickable,
-        colors = rowColors(enabled),
+
+    item(key = "reminders_label") { GroupLabel(R.string.settings_reminders) }
+    item(key = "reminders") {
+        SettingsGroup {
+            SwitchRow(
+                title = stringResource(R.string.settings_daily_reminder),
+                body = stringResource(R.string.settings_daily_reminder_hint),
+                checked = reminders.dailyEnabled,
+                onCheckedChange = { actions.onReminder(ReminderKind.Daily, it) },
+            )
+            GroupDivider()
+            SwitchRow(
+                title = stringResource(R.string.settings_streak_alert),
+                body = stringResource(R.string.settings_streak_alert_hint),
+                checked = reminders.streakEnabled,
+                onCheckedChange = { actions.onReminder(ReminderKind.Streak, it) },
+            )
+            if (reminders.anyEnabled && notificationsBlocked) {
+                GroupDivider()
+                WarningRow(
+                    title = stringResource(R.string.notifications_blocked),
+                    body = stringResource(R.string.notifications_blocked_hint),
+                    onClick = onFixNotifications,
+                )
+            }
+            GroupDivider()
+            ReminderTimeRow(reminders = reminders, onClick = onEditTime)
+        }
+    }
+
+    item(key = "appearance_label") { GroupLabel(R.string.settings_appearance) }
+    item(key = "appearance") {
+        SettingsGroup {
+            ChoiceGroup(title = stringResource(R.string.settings_theme)) {
+                ThemeMode.entries.forEach { mode ->
+                    SelectableSurface(
+                        selected = settings.theme == mode,
+                        onClick = { actions.onTheme(mode) },
+                        modifier = Modifier.weight(1f),
+                        minHeight = ChoiceHeight,
+                        contentPadding = PaddingValues(horizontal = 6.dp),
+                    ) {
+                        Icon(
+                            painter = painterResource(mode.iconRes),
+                            contentDescription = null,
+                            modifier = Modifier.size(15.dp),
+                        )
+                        ChoiceText(stringResource(mode.labelRes))
+                    }
+                }
+            }
+            GroupDivider()
+            ChoiceGroup(title = stringResource(R.string.settings_language)) {
+                AppLanguage.entries.forEach { language ->
+                    SelectableSurface(
+                        selected = settings.language == language,
+                        onClick = { actions.onLanguage(language) },
+                        modifier = Modifier.weight(1f),
+                        minHeight = ChoiceHeight,
+                        contentPadding = PaddingValues(horizontal = 6.dp),
+                    ) {
+                        ChoiceText(stringResource(language.labelRes))
+                    }
+                }
+            }
+        }
+    }
+
+    item(key = "about_label") { GroupLabel(R.string.settings_about) }
+    item(key = "about") {
+        SettingsGroup {
+            if (aboutSlot != null) {
+                aboutSlot()
+                GroupDivider()
+            }
+            AboutRow()
+        }
+    }
+}
+
+@Composable
+private fun GroupLabel(@StringRes text: Int, top: Dp = 18.dp) {
+    SectionLabel(
+        text = stringResource(text),
+        modifier = Modifier.padding(start = ScreenPadding, top = top, end = ScreenPadding),
+    )
+}
+
+@Composable
+private fun SettingsGroup(content: @Composable ColumnScope.() -> Unit) {
+    AppCard(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = ScreenPadding, top = 8.dp, end = ScreenPadding),
+        content = content,
+    )
+}
+
+@Composable
+private fun GroupDivider() {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = RowPadding)
+            .height(1.dp)
+            .background(MaterialTheme.appColors.line),
+    )
+}
+
+@Composable
+private fun RowText(title: String, body: String, modifier: Modifier = Modifier, titleSize: Int = 15) {
+    val colors = MaterialTheme.appColors
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.titleSmall.copy(fontSize = titleSize.sp),
+            color = colors.ink,
+        )
+        Text(text = body, style = MaterialTheme.typography.bodySmall, color = colors.ink3)
+    }
+}
+
+@Composable
+private fun IconTile(@DrawableRes icon: Int, container: Color, content: Color) {
+    Box(
+        modifier = Modifier
+            .size(IconTileSize)
+            .background(container, MaterialTheme.appShapes.item),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(painter = painterResource(icon), contentDescription = null, tint = content, modifier = Modifier.size(18.dp))
+    }
+}
+
+@Composable
+private fun Caret() {
+    Icon(
+        painter = painterResource(R.drawable.ic_ph_caret_right),
+        contentDescription = null,
+        tint = MaterialTheme.appColors.ink3,
+        modifier = Modifier.size(16.dp),
+    )
+}
+
+@Composable
+private fun NavRow(
+    @DrawableRes icon: Int,
+    title: String,
+    subtitle: String,
+    onClick: () -> Unit,
+) {
+    val colors = MaterialTheme.appColors
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 64.dp)
+            .appClickable(shape = RectangleShape, onClick = onClick)
+            .padding(horizontal = RowPadding, vertical = 14.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        IconTile(icon = icon, container = colors.accTint16, content = colors.accTx)
+        RowText(title = title, body = subtitle, modifier = Modifier.weight(1f))
+        Caret()
+    }
+}
+
+@Composable
+private fun ChoiceGroup(
+    title: String,
+    content: @Composable RowScope.() -> Unit,
+) {
+    Column(
+        modifier = Modifier.padding(horizontal = RowPadding, vertical = 14.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.titleSmall,
+            color = MaterialTheme.appColors.ink,
+        )
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .selectableGroup(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            content = content,
+        )
+    }
+}
+
+@Composable
+private fun ChoiceText(text: String) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.labelMedium,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
     )
 }
 
 @Composable
 private fun SwitchRow(
     title: String,
-    summary: String,
+    body: String,
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit,
-    enabled: Boolean = true,
 ) {
-    ListItem(
-        headlineContent = { Text(title) },
-        supportingContent = { Text(summary) },
-        trailingContent = { AppSwitch(checked = checked, onCheckedChange = null, enabled = enabled) },
-        modifier = Modifier.toggleable(
-            value = checked,
-            enabled = enabled,
-            role = Role.Switch,
-            onValueChange = onCheckedChange,
-        ),
-        colors = rowColors(enabled),
-    )
+    val interactionSource = remember { MutableInteractionSource() }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .focusRing(interactionSource, RectangleShape)
+            .toggleable(
+                value = checked,
+                interactionSource = interactionSource,
+                indication = ripple(),
+                role = Role.Switch,
+                onValueChange = onCheckedChange,
+            )
+            .padding(horizontal = RowPadding, vertical = 14.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        RowText(title = title, body = body, modifier = Modifier.weight(1f))
+        AppSwitch(checked = checked, onCheckedChange = null)
+    }
+}
+
+@Composable
+private fun ReminderTimeRow(
+    reminders: ReminderSettings,
+    onClick: () -> Unit,
+) {
+    val colors = MaterialTheme.appColors
+    val enabled = reminders.anyEnabled
+    val time = formatTime(reminders.time)
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .appClickable(
+                shape = RectangleShape,
+                enabled = enabled,
+                onClickLabel = stringResource(R.string.settings_reminder_time_change),
+                onClick = onClick,
+            )
+            .disabledAlpha(enabled)
+            .padding(horizontal = RowPadding, vertical = 14.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        RowText(
+            title = stringResource(R.string.settings_reminder_time),
+            body = stringResource(R.string.settings_reminder_time_hint, time, formatTime(reminders.streakTime)),
+            modifier = Modifier.weight(1f),
+        )
+        Box(
+            modifier = Modifier
+                .defaultMinSize(minHeight = 36.dp)
+                .background(colors.accTint12, MaterialTheme.appShapes.iconTile)
+                .border(1.dp, colors.accLine, MaterialTheme.appShapes.iconTile)
+                .padding(horizontal = 12.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                text = time,
+                style = MaterialTheme.typography.labelMedium,
+                color = colors.accTx,
+            )
+        }
+    }
 }
 
 @Composable
 private fun WarningRow(
     title: String,
-    summary: String,
+    body: String,
     onClick: () -> Unit,
 ) {
-    ListItem(
-        headlineContent = { Text(title) },
-        supportingContent = { Text(summary) },
-        leadingContent = {
-            Icon(
-                painter = painterResource(R.drawable.ic_ph_warning_circle),
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.error,
-            )
-        },
-        modifier = Modifier.clickable(role = Role.Button, onClick = onClick),
-        colors = ListItemDefaults.colors(
-            containerColor = Color.Transparent,
-            headlineColor = MaterialTheme.colorScheme.error,
-        ),
-    )
+    val colors = MaterialTheme.appColors
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 64.dp)
+            .appClickable(shape = RectangleShape, onClick = onClick)
+            .padding(horizontal = RowPadding, vertical = 14.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        IconTile(icon = R.drawable.ic_ph_warning_circle, container = colors.surf2, content = colors.danger)
+        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(text = title, style = MaterialTheme.typography.titleSmall, color = colors.danger)
+            Text(text = body, style = MaterialTheme.typography.bodySmall, color = colors.ink3)
+        }
+        Caret()
+    }
 }
 
 @Composable
-private fun rowColors(enabled: Boolean) = ListItemDefaults.colors(
-    containerColor = Color.Transparent,
-    headlineColor = if (enabled) {
-        MaterialTheme.colorScheme.onSurface
-    } else {
-        MaterialTheme.colorScheme.onSurface.copy(alpha = DisabledAlpha)
-    },
-    supportingColor = if (enabled) {
-        MaterialTheme.colorScheme.onSurfaceVariant
-    } else {
-        MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = DisabledAlpha)
-    },
-)
-
-@Composable
-private fun GoalDialog(
-    goal: DailyGoal,
-    onConfirm: (DailyGoal) -> Unit,
-    onDismiss: () -> Unit,
-) {
-    var unit by rememberSaveable { mutableStateOf(goal.unit) }
-    var input by rememberSaveable { mutableStateOf(if (goal.enabled) goal.value.toString() else "") }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.settings_daily_goal)) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.lg)) {
-                SegmentedControl(
-                    items = GoalUnit.entries.map { SegmentItem(stringResource(it.labelRes)) },
-                    selectedIndex = unit.ordinal,
-                    onSelect = { unit = GoalUnit.entries[it] },
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                OutlinedTextField(
-                    value = input,
-                    onValueChange = { next -> input = next.filter(Char::isDigit).take(GoalDigits) },
-                    label = {
-                        Text(
-                            stringResource(
-                                if (unit == GoalUnit.Minutes) R.string.settings_goal_minutes else R.string.settings_goal_pages,
-                            ),
-                        )
-                    },
-                    supportingText = { Text(stringResource(R.string.settings_goal_hint, formatNumber(0))) },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            }
-        },
-        confirmButton = {
-            TextButton(
-                onClick = { onConfirm(DailyGoal(unit, input.toIntOrNull() ?: 0)) },
-            ) {
-                Text(stringResource(R.string.action_save))
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) }
-        },
-    )
+private fun AboutRow() {
+    val colors = MaterialTheme.appColors
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .semantics(mergeDescendants = true) {}
+            .padding(horizontal = RowPadding, vertical = 14.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        IconTile(icon = R.drawable.ic_ph_shield_check, container = colors.surf2, content = colors.accLt)
+        RowText(
+            title = stringResource(
+                R.string.settings_about_version,
+                stringResource(R.string.app_name),
+                BuildConfig.VERSION_NAME,
+                formatNumber(BuildConfig.VERSION_CODE),
+            ),
+            body = stringResource(R.string.settings_about_offline),
+            titleSize = 14,
+        )
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ReminderTimeDialog(
-    title: String,
     time: LocalTime,
     onConfirm: (LocalTime) -> Unit,
     onDismiss: () -> Unit,
@@ -534,7 +648,7 @@ private fun ReminderTimeDialog(
     )
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(title) },
+        title = { Text(stringResource(R.string.settings_reminder_time)) },
         text = { TimePicker(state = state) },
         confirmButton = {
             TextButton(onClick = { onConfirm(LocalTime.of(state.hour, state.minute)) }) {
@@ -544,17 +658,23 @@ private fun ReminderTimeDialog(
         dismissButton = {
             TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) }
         },
+        containerColor = MaterialTheme.appColors.surf,
     )
 }
 
 @Composable
-private fun goalLabel(goal: DailyGoal): String = when {
-    !goal.enabled -> stringResource(R.string.settings_goal_off)
-    goal.unit == GoalUnit.Minutes ->
-        stringResource(R.string.settings_goal_per_day, formatMinutes(goal.value * MinuteMs))
-    else -> stringResource(
-        R.string.settings_goal_per_day,
-        pluralStringResource(R.plurals.stats_pages_value, goal.value, formatNumber(goal.value)),
+private fun goalSummary(goal: DailyGoal, context: GoalContext): String {
+    if (!goal.enabled) return stringResource(R.string.settings_goal_off_summary)
+    val amount = if (goal.unit == GoalUnit.Minutes) {
+        formatMinutes(goal.value * MINUTE_MS)
+    } else {
+        pluralStringResource(R.plurals.stats_pages_value, goal.value, formatNumber(goal.value))
+    }
+    return pluralStringResource(
+        R.plurals.settings_goal_summary,
+        context.metLastWeek,
+        amount,
+        formatNumber(context.metLastWeek),
     )
 }
 
@@ -575,12 +695,27 @@ private val ThemeMode.labelRes: Int
         ThemeMode.Dark -> R.string.settings_theme_dark
     }
 
+@get:DrawableRes
+private val ThemeMode.iconRes: Int
+    get() = when (this) {
+        ThemeMode.System -> R.drawable.ic_ph_circle_half
+        ThemeMode.Light -> R.drawable.ic_ph_sun
+        ThemeMode.Dark -> R.drawable.ic_ph_moon
+    }
+
 @get:StringRes
 private val PageAppearance.labelRes: Int
     get() = when (this) {
         PageAppearance.Normal -> R.string.settings_page_normal
         PageAppearance.Night -> R.string.settings_page_night
         PageAppearance.Sepia -> R.string.settings_page_sepia
+    }
+
+private val PageAppearance.swatch: Color
+    get() = when (this) {
+        PageAppearance.Normal -> PaperSwatch.Normal
+        PageAppearance.Night -> PaperSwatch.Night
+        PageAppearance.Sepia -> PaperSwatch.Sepia
     }
 
 @get:StringRes
@@ -591,24 +726,42 @@ private val AppLanguage.labelRes: Int
         AppLanguage.Arabic -> R.string.language_arabic
     }
 
-@get:StringRes
-private val GoalUnit.labelRes: Int
-    get() = when (this) {
-        GoalUnit.Minutes -> R.string.settings_goal_unit_minutes
-        GoalUnit.Pages -> R.string.settings_goal_unit_pages
-    }
+private val ScreenPadding = 20.dp
+private val RowPadding = 16.dp
+private val IconTileSize = 36.dp
+private val ChoiceHeight = 44.dp
+private const val MINUTE_MS = 60_000L
 
-private const val DisabledAlpha = 0.38f
-private const val GoalDigits = 4
-private const val MinuteMs = 60_000L
+private val PreviewState = SettingsUiState(
+    settings = AppSettings(
+        goal = DailyGoal(GoalUnit.Minutes, 15),
+        reminders = ReminderSettings(dailyEnabled = true, streakEnabled = true, time = LocalTime.of(19, 0)),
+    ),
+    goalContext = GoalContext(metLastWeek = 5, avgSessionMs = 22 * MINUTE_MS, pagesPerDay = 15),
+)
 
-@Preview(showBackground = true)
+private val PreviewActions = SettingsActions({}, {}, {}, {}, { _, _ -> }, {})
+
+@Preview(name = "Dark", showBackground = true, heightDp = 1400)
 @Composable
-private fun SettingsPreview() {
-    Reader343Theme {
-        SettingsScreen(
-            settings = AppSettings(goal = DailyGoal(GoalUnit.Minutes, 30)),
-            actions = SettingsActions({}, {}, {}, {}, {}, {}, {}, {}),
-        )
+private fun SettingsDarkPreview() {
+    Reader343Theme(darkTheme = true) {
+        SettingsScreen(state = PreviewState, actions = PreviewActions, notificationsBlocked = true)
+    }
+}
+
+@Preview(name = "Light", showBackground = true, heightDp = 1400)
+@Composable
+private fun SettingsLightPreview() {
+    Reader343Theme(darkTheme = false) {
+        SettingsScreen(state = PreviewState, actions = PreviewActions)
+    }
+}
+
+@Preview(name = "RTL", showBackground = true, heightDp = 1400, locale = "ar")
+@Composable
+private fun SettingsRtlPreview() {
+    Reader343Theme(darkTheme = true) {
+        SettingsScreen(state = PreviewState, actions = PreviewActions)
     }
 }

@@ -47,7 +47,7 @@ class ReminderScheduler @Inject constructor(
             .any { !it.state.isFinished && timeTag(time) in it.tags }
 
     private fun enqueue(type: ReminderType, time: LocalTime, fromMs: Long) {
-        val target = nextOccurrence(time, fromMs)
+        val target = nextOccurrence(time, fromMs, ZoneId.systemDefault())
         val request = OneTimeWorkRequestBuilder<ReminderWorker>()
             .setInitialDelay((target - System.currentTimeMillis()).coerceAtLeast(0L), TimeUnit.MILLISECONDS)
             .setInputData(
@@ -61,20 +61,19 @@ class ReminderScheduler @Inject constructor(
         workManager.enqueueUniqueWork(type.workName, ExistingWorkPolicy.REPLACE, request)
     }
 
-    private fun nextOccurrence(time: LocalTime, fromMs: Long): Long {
-        val zone = ZoneId.systemDefault()
-        val from = Instant.ofEpochMilli(fromMs).atZone(zone)
-        var candidate = ZonedDateTime.of(from.toLocalDate(), time, zone)
-        if (!candidate.isAfter(from)) {
-            candidate = ZonedDateTime.of(from.toLocalDate().plusDays(1), time, zone)
-        }
-        return candidate.toInstant().toEpochMilli()
-    }
-
     private fun timeTag(time: LocalTime): String =
         String.format(Locale.ROOT, "at:%02d:%02d", time.hour, time.minute)
 
     private companion object {
         const val MIN_GAP_MS = 60_000L
     }
+}
+
+internal fun nextOccurrence(time: LocalTime, fromMs: Long, zone: ZoneId): Long {
+    val from = Instant.ofEpochMilli(fromMs).atZone(zone)
+    var candidate = ZonedDateTime.of(from.toLocalDate(), time, zone)
+    if (!candidate.isAfter(from)) {
+        candidate = ZonedDateTime.of(from.toLocalDate().plusDays(1), time, zone)
+    }
+    return candidate.toInstant().toEpochMilli()
 }
