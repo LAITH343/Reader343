@@ -38,7 +38,12 @@ class Reader343App : Application(), Configuration.Provider {
 
     override fun onCreate() {
         super.onCreate()
-        reminderNotifier.ensureChannel()
+        appScope.launch {
+            settingsRepository.settings
+                .map { it.language }
+                .distinctUntilChanged()
+                .collect { reminderNotifier.ensureChannel(it) }
+        }
         appScope.launch {
             settingsRepository.settings
                 .map { it.reminders }

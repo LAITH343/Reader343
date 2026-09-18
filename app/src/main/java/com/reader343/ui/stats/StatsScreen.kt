@@ -68,6 +68,7 @@ import com.reader343.ui.components.formatWeekday
 import com.reader343.ui.theme.Reader343Theme
 import com.reader343.ui.theme.spacing
 import java.time.LocalDate
+import java.time.format.TextStyle
 
 @Composable
 fun StatsRoute(
@@ -159,7 +160,7 @@ private fun StatsContent(
         item { MetricSelector(metric = metric, onMetricSelected = onMetricSelected) }
         item { SectionHeader(stringResource(R.string.stats_activity)) }
         item { ActivityCard(activity = activity, today = today, metric = metric) }
-        item { SectionHeader(stringResource(R.string.stats_last_days)) }
+        item { SectionHeader(pluralStringResource(R.plurals.stats_last_days, stats.days.size, formatNumber(stats.days.size))) }
         item { ChartCard(days = stats.days, metric = metric) }
         if (stats.books.isNotEmpty()) {
             item { SectionHeader(stringResource(R.string.stats_books)) }
@@ -322,7 +323,7 @@ private fun ChartCard(
                     days.forEachIndexed { index, day ->
                         val today = index == days.lastIndex
                         Text(
-                            text = formatWeekday(day.date),
+                            text = formatWeekday(day.date, TextStyle.NARROW_STANDALONE),
                             style = MaterialTheme.typography.labelSmall,
                             fontWeight = if (today) FontWeight.Bold else FontWeight.Normal,
                             color = if (today) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,

@@ -6,6 +6,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.stringResource
+import androidx.core.text.BidiFormatter
 import com.reader343.R
 import java.text.NumberFormat
 import java.time.Instant
@@ -18,7 +19,7 @@ import java.util.Locale
 
 @Composable
 @ReadOnlyComposable
-fun currentLocale(): Locale = LocalConfiguration.current.locales[0] ?: Locale.getDefault()
+fun currentLocale(): Locale = LocalConfiguration.current.locales[0]
 
 @Composable
 @ReadOnlyComposable
@@ -103,9 +104,14 @@ fun formatRelative(time: Long, now: Long = System.currentTimeMillis()): String {
 
 @Composable
 @ReadOnlyComposable
-fun formatWeekday(date: LocalDate): String = date.dayOfWeek.getDisplayName(TextStyle.SHORT, currentLocale())
+fun formatWeekday(date: LocalDate, style: TextStyle = TextStyle.SHORT): String =
+    date.dayOfWeek.getDisplayName(style, currentLocale())
 
 @Composable
 @ReadOnlyComposable
 fun formatDate(date: LocalDate): String =
     DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).withLocale(currentLocale()).format(date)
+
+@Composable
+@ReadOnlyComposable
+fun bidiWrap(text: String): String = BidiFormatter.getInstance(currentLocale()).unicodeWrap(text)

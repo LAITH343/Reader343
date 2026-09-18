@@ -39,7 +39,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
@@ -61,6 +61,7 @@ import com.reader343.ui.components.EmptyState
 import com.reader343.ui.components.ErrorState
 import com.reader343.ui.components.LoadingState
 import com.reader343.ui.components.SectionHeader
+import com.reader343.ui.components.bidiWrap
 import com.reader343.ui.components.TopBarAction
 import com.reader343.ui.theme.Reader343Theme
 import com.reader343.ui.theme.spacing
@@ -77,7 +78,7 @@ fun LibraryRoute(
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val importing by viewModel.importing.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
-    val context = LocalContext.current
+    val resources = LocalResources.current
 
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) viewModel.importPdf(uri)
@@ -87,7 +88,7 @@ fun LibraryRoute(
         viewModel.events.collect { event ->
             when (event) {
                 LibraryEvent.ImportFailed ->
-                    snackbarHostState.showSnackbar(context.getString(R.string.library_import_failed))
+                    snackbarHostState.showSnackbar(resources.getString(R.string.library_import_failed))
             }
         }
     }
@@ -320,7 +321,7 @@ private fun DeleteBookDialog(
         onDismissRequest = onDismiss,
         icon = { Icon(painterResource(R.drawable.ic_delete), contentDescription = null) },
         title = { Text(stringResource(R.string.delete_book_title)) },
-        text = { Text(stringResource(R.string.delete_book_message, title)) },
+        text = { Text(stringResource(R.string.delete_book_message, bidiWrap(title))) },
         confirmButton = {
             DestructiveTextButton(text = stringResource(R.string.action_delete), onClick = onConfirm)
         },

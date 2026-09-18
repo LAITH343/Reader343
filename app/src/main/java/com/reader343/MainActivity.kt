@@ -41,7 +41,10 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        lifecycleScope.launch { AppLocales.apply(settingsRepository.settings.first().language) }
+        lifecycleScope.launch {
+            val applied = AppLocales.current()
+            if (settingsRepository.settings.first().language != applied) settingsRepository.setLanguage(applied)
+        }
         if (savedInstanceState == null) handleIntent(intent)
         setContent {
             val settings by settingsRepository.settings.collectAsStateWithLifecycle(initialValue = null)

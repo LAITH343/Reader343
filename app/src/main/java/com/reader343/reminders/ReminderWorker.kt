@@ -7,6 +7,7 @@ import androidx.work.WorkerParameters
 import com.reader343.data.repo.LibraryRepository
 import com.reader343.data.repo.SettingsRepository
 import com.reader343.data.repo.StatsRepository
+import com.reader343.domain.AppLanguage
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 import kotlinx.coroutines.flow.first
@@ -28,11 +29,11 @@ class ReminderWorker @AssistedInject constructor(
     override suspend fun doWork(): Result {
         val type = ReminderType.fromName(inputData.getString(KEY_TYPE)) ?: return Result.failure()
         val target = inputData.getLong(KEY_TARGET, 0L)
-        val settings = settingsRepository.settings.first().reminders
-        if (!type.isEnabled(settings)) return Result.success()
+        val settings = settingsRepository.settings.first()
+        if (!type.isEnabled(settings.reminders)) return Result.success()
 
-        if (isOnTime(type, target)) deliver(type)
-        scheduler.scheduleNext(type, settings, target)
+        if (isOnTime(type, target)) deliver(type, settings.language)
+        scheduler.scheduleNext(type, settings.reminders, target)
         return Result.success()
     }
 
@@ -45,12 +46,12 @@ class ReminderWorker @AssistedInject constructor(
         return Instant.ofEpochMilli(target).atZone(zone).toLocalDate() == LocalDate.now(zone)
     }
 
-    private suspend fun deliver(type: ReminderType) {
+    private suspend fun deliver(type: ReminderType, language: AppLanguage) {
         when (type) {
-            ReminderType.Reading -> notifier.showReading(libraryRepository.continueBook()?.title)
+            ReminderType.Reading -> notifier.showReading(language, libraryRepository.continueBook()?.title)
             ReminderType.Streak -> {
                 val streak = statsRepository.streakSnapshot()
-                if (!streak.readToday && streak.days > 0) notifier.showStreak(streak.days)
+                if (!streak.readToday && streak.days > 0) notifier.showStreak(language, streak.days)
             }
         }
     }

@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">Reader343</string>
+    <string name="app_name" translatable="false">Reader343</string>
     <string name="library_title">Library</string>
     <string name="library_empty">Your library is empty</string>
     <string name="library_empty_hint">Import a PDF to start tracking your reading.</string>
@@ -59,7 +59,10 @@
     <string name="stats_avg_session">Avg session</string>
     <string name="stats_pages_per_day">Pages / day</string>
     <string name="stats_sessions">Sessions</string>
-    <string name="stats_last_days">Last 14 days</string>
+    <plurals name="stats_last_days">
+        <item quantity="one">Last day</item>
+        <item quantity="other">Last %1$s days</item>
+    </plurals>
     <string name="stats_metric_time">Time</string>
     <string name="stats_metric_pages">Pages</string>
     <string name="stats_chart_time">%1$s read</string>
@@ -118,7 +121,7 @@
     <string name="settings_goal_unit_pages">Pages</string>
     <string name="settings_goal_minutes">Minutes per day</string>
     <string name="settings_goal_pages">Pages per day</string>
-    <string name="settings_goal_hint">Set to 0 to turn the goal off</string>
+    <string name="settings_goal_hint">Set to %1$s to turn the goal off</string>
     <string name="settings_reminders">Reminders</string>
     <string name="settings_reminders_enabled">Reminders</string>
     <string name="settings_reminders_enabled_hint">Get a daily nudge to read</string>

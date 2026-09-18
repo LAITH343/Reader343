@@ -5,15 +5,19 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.content.res.Configuration
 import android.os.Build
 import androidx.core.app.NotificationChannelCompat
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
+import androidx.core.text.BidiFormatter
 import com.reader343.MainActivity
 import com.reader343.R
+import com.reader343.domain.AppLanguage
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.text.NumberFormat
+import java.util.Locale
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -24,7 +28,8 @@ class ReminderNotifier @Inject constructor(
 
     private val manager: NotificationManagerCompat get() = NotificationManagerCompat.from(context)
 
-    fun ensureChannel() {
+    fun ensureChannel(language: AppLanguage) {
+        val context = localized(language)
         val channel = NotificationChannelCompat.Builder(CHANNEL_ID, NotificationManagerCompat.IMPORTANCE_DEFAULT)
             .setName(context.getString(R.string.reminder_channel_name))
             .setDescription(context.getString(R.string.reminder_channel_description))
@@ -32,26 +37,38 @@ class ReminderNotifier @Inject constructor(
         manager.createNotificationChannel(channel)
     }
 
-    fun showReading(bookTitle: String?) {
+    fun showReading(language: AppLanguage, bookTitle: String?) {
+        val context = localized(language)
         val body = if (bookTitle != null) {
-            context.getString(R.string.reminder_reading_body_book, bookTitle)
+            context.getString(
+                R.string.reminder_reading_body_book,
+                BidiFormatter.getInstance(context.resources.configuration.locales[0]).unicodeWrap(bookTitle),
+            )
         } else {
             context.getString(R.string.reminder_reading_body)
         }
-        post(ReminderType.Reading, context.getString(R.string.reminder_reading_title), body)
+        post(language, ReminderType.Reading, context.getString(R.string.reminder_reading_title), body)
     }
 
-    fun showStreak(days: Int) {
+    fun showStreak(language: AppLanguage, days: Int) {
+        val context = localized(language)
         val count = NumberFormat.getIntegerInstance(context.resources.configuration.locales[0]).format(days)
         post(
+            language,
             ReminderType.Streak,
             context.resources.getQuantityString(R.plurals.reminder_streak_title, days, count),
             context.getString(R.string.reminder_streak_body),
         )
     }
 
-    private fun post(type: ReminderType, title: String, body: String) {
-        ensureChannel()
+    private fun localized(language: AppLanguage): Context {
+        if (language == AppLanguage.System || Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) return context
+        val config = Configuration(context.resources.configuration).apply { setLocale(Locale.forLanguageTag(language.tag)) }
+        return context.createConfigurationContext(config)
+    }
+
+    private fun post(language: AppLanguage, type: ReminderType, title: String, body: String) {
+        ensureChannel(language)
         if (!context.canPostReminders()) return
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
             ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) !=

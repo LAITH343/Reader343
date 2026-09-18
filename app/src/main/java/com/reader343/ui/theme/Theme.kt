@@ -9,6 +9,7 @@ import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 
 private val DarkColors = darkColorScheme(
@@ -38,10 +39,12 @@ fun Reader343Theme(
         else -> LightColors
     }
 
+    val locale = LocalConfiguration.current.locales[0]
+
     CompositionLocalProvider(LocalSpacing provides Spacing()) {
         MaterialTheme(
             colorScheme = colorScheme,
-            typography = Typography,
+            typography = typographyFor(locale),
             shapes = Shapes,
             content = content,
         )

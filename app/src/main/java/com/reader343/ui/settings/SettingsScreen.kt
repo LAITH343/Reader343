@@ -45,6 +45,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -84,14 +85,14 @@ fun SettingsRoute(
     val access = rememberNotificationAccess()
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
-    val context = LocalContext.current
+    val resources = LocalResources.current
     var askPermission by rememberSaveable { mutableStateOf(false) }
 
     val showDenied: () -> Unit = {
         scope.launch {
             val result = snackbarHostState.showSnackbar(
-                message = context.getString(R.string.notifications_denied),
-                actionLabel = context.getString(R.string.action_open_settings),
+                message = resources.getString(R.string.notifications_denied),
+                actionLabel = resources.getString(R.string.action_open_settings),
                 withDismissAction = true,
             )
             if (result == SnackbarResult.ActionPerformed) access.openSystemSettings()
@@ -513,7 +514,7 @@ private fun GoalDialog(
                             ),
                         )
                     },
-                    supportingText = { Text(stringResource(R.string.settings_goal_hint)) },
+                    supportingText = { Text(stringResource(R.string.settings_goal_hint, formatNumber(0))) },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     modifier = Modifier.fillMaxWidth(),

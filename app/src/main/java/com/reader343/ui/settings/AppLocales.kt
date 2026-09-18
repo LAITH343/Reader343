@@ -15,4 +15,11 @@ object AppLocales {
             AppCompatDelegate.setApplicationLocales(target)
         }
     }
+
+    fun current(): AppLanguage {
+        val locales = AppCompatDelegate.getApplicationLocales()
+        if (locales.isEmpty) return AppLanguage.System
+        val language = locales[0]?.language
+        return AppLanguage.entries.firstOrNull { it != AppLanguage.System && it.tag == language } ?: AppLanguage.System
+    }
 }
