@@ -92,6 +92,22 @@ class TextSegmenterTest {
     }
 
     @Test
+    fun normalizesContractions() {
+        val expected = listOf("I wouldn't say I'll go, you're sure it's John's and we've I'd I'm.")
+        assertEquals(expected, texts(page("I wouldn't say I'll go, you're sure it's John's and we've I'd I'm.")))
+        assertEquals(expected, texts(page("I wouldn’t say I’ll go, you‘re sure itʼs John´s and we`ve I′d I＇m.")))
+        assertEquals(expected, texts(page("I wouldn\u0092t say I\u0092ll go, you\u0092re sure it\u0092s John\u0092s and we\u0092ve I\u0092d I\u0092m.")))
+        assertEquals(expected, texts(page("I wouldn ' t say I 'll go, you' re sure it 's John 's and we 've I' d I ' m.")))
+        assertEquals(listOf("I wouldn't know."), texts(page("I wouldn’", "t know.")))
+        assertEquals(listOf("They don't, can't and won't."), texts(page("They don t, can t and won t.")))
+    }
+
+    @Test
+    fun keepsQuotesThatAreNotContractions() {
+        assertEquals(listOf("The students' books said 'hello' twice."), texts(page("The students’ books said ‘hello’ twice.")))
+    }
+
+    @Test
     fun keepsNumbersInsideBody() {
         val units = texts(page("Line one is here.", "The year was", "1984", "and it rained.", "Line five is here.", "Line six is here."))
         assertTrue(units.contains("The year was 1984 and it rained."))

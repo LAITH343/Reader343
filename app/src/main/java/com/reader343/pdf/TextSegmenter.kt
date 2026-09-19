@@ -21,6 +21,18 @@ object TextSegmenter {
 
     private val referenceMark = Regex("""\s*(?:\[\p{Nd}{1,3}(?:\s?[,\p{Pd}]\s?\p{Nd}{1,3})*]|[\u00B9\u00B2\u00B3\u2070-\u2079]+)""")
 
+    private const val APOSTROPHES = "'’‘ʼʻʹ`´′‛＇\u0091\u0092"
+
+    private val splitContraction = Regex(
+        """(?<=\p{L})\s*'\s*(?=(?:t|s|d|m|ll|re|ve)(?!\p{L}))""",
+        RegexOption.IGNORE_CASE,
+    )
+
+    private val droppedApostrophe = Regex(
+        """(?<!\p{L})((?:do|does|did|is|are|was|were|has|have|had|would|could|should|must|might|need|ca|wo|ai|sha)n) t(?!\p{L})""",
+        RegexOption.IGNORE_CASE,
+    )
+
     fun segment(
         page: PageText,
         locale: Locale = Locale.getDefault(),
@@ -122,6 +134,7 @@ object TextSegmenter {
                 val c = chars[i].char
                 when {
                     isSoftHyphen(c) -> Unit
+                    c in APOSTROPHES -> append('\'', i)
                     isBlank(c) -> space()
                     else -> append(c, i)
                 }
@@ -179,7 +192,7 @@ object TextSegmenter {
         while (first <= last && text[first].isWhitespace()) first++
         while (last >= first && text[last].isWhitespace()) last--
         if (first > last) return null
-        val raw = text.substring(first, last + 1)
+        val raw = text.substring(first, last + 1).replace(splitContraction, "'").replace(droppedApostrophe, "$1't")
         val sentence = if (skipFurniture) raw.replace(referenceMark, "").replace(spaces, " ").trim() else raw
         if (sentence.none { it.isLetterOrDigit() }) return null
         val indices = (first..last).map { map[it] }.filter { it >= 0 }
