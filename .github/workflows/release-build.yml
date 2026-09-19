@@ -1,0 +1,108 @@
+name: Release build
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing tag to build, for example v1.1
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-build-${{ inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      TAG: ${{ inputs.tag || github.ref_name }}
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refs/tags/${{ env.TAG }}
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - uses: android-actions/setup-android@v3
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Read version
+        id: version
+        run: |
+          name="$(sed -nE 's/^[[:space:]]*versionName = "([^"]+)".*/\1/p' app/build.gradle.kts)"
+          code="$(sed -nE 's/^[[:space:]]*versionCode = ([0-9]+).*/\1/p' app/build.gradle.kts)"
+          if [ -z "$name" ] || [ -z "$code" ]; then
+            echo "::error::Could not read versionName and versionCode from app/build.gradle.kts."
+            exit 1
+          fi
+          if [ "v$name" != "$TAG" ]; then
+            echo "::error::Tag $TAG does not match versionName $name in app/build.gradle.kts."
+            exit 1
+          fi
+          echo "name=$name" >>"$GITHUB_OUTPUT"
+          echo "code=$code" >>"$GITHUB_OUTPUT"
+
+      - name: Prepare signing key
+        env:
+          KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
+        run: |
+          for name in KEYSTORE_BASE64 STORE_PASSWORD KEY_ALIAS KEY_PASSWORD; do
+            if [ -z "${!name}" ]; then
+              echo "::error::Missing secret RELEASE_$name."
+              exit 1
+            fi
+          done
+          echo "$KEYSTORE_BASE64" | base64 -d >"$RUNNER_TEMP/release.jks"
+          {
+            echo "storeFile=$RUNNER_TEMP/release.jks"
+            echo "storePassword=$STORE_PASSWORD"
+            echo "keyAlias=$KEY_ALIAS"
+            echo "keyPassword=$KEY_PASSWORD"
+          } >keystore.properties
+
+      - name: Build
+        run: ./gradlew testDebugUnitTest assembleRelease
+
+      - name: Verify and name APK
+        id: apk
+        run: |
+          apk=app/build/outputs/apk/release/app-release.apk
+          if [ ! -f "$apk" ]; then
+            echo "::error::Signed APK not found. The release build is unsigned."
+            exit 1
+          fi
+          build_tools="$ANDROID_HOME/build-tools/$(ls "$ANDROID_HOME/build-tools" | sort -V | tail -n 1)"
+          "$build_tools/apksigner" verify --print-certs "$apk"
+          out="$RUNNER_TEMP/reader343-${{ steps.version.outputs.name }}-${{ steps.version.outputs.code }}.apk"
+          cp "$apk" "$out"
+          echo "path=$out" >>"$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: reader343-${{ steps.version.outputs.name }}-${{ steps.version.outputs.code }}
+          path: ${{ steps.apk.outputs.path }}
+
+      - name: Create or update draft release
+        run: bash .github/scripts/draft-release.sh "$TAG" "${{ steps.apk.outputs.path }}" "$GH_REPO"
+
+      - name: Check release
+        run: bash .github/scripts/check-release.sh "$TAG" "$GH_REPO"
+
+      - name: Remove signing key
+        if: always()
+        run: rm -f "$RUNNER_TEMP/release.jks" keystore.properties

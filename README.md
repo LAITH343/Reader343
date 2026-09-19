@@ -29,6 +29,30 @@ The app updates itself from the latest stable release of this repository (`/rele
 
    Each bullet is `- {New|Improved|Fixed}: {title} — {body}`, with an em dash between title and body. The app shows each one as a card tagged New, Improved or Fixed. Anything outside that section is ignored by the app, so you can add other notes below it under their own heading.
 
+### Building a release
+
+The `Release build` workflow (`.github/workflows/release-build.yml`) runs when a `v*` tag is pushed, and can be started by hand with an existing tag:
+
+```sh
+git tag v1.1
+git push origin v1.1
+```
+
+It checks that the tag matches `versionName`, runs the unit tests, builds a signed release APK, verifies its signature, and names it `reader343-{versionName}-{versionCode}.apk`. It then creates a draft release for the tag, or updates the existing draft by replacing its APK and keeping its notes, and runs the release check against the draft. It never touches a published release.
+
+A new draft starts with placeholder notes, so the first check fails until you edit the `## What's new` section on GitHub. Re-run `Release check` by hand with the tag, then publish the draft.
+
+Signing uses these repository secrets:
+
+| Secret | Value |
+|---|---|
+| `RELEASE_KEYSTORE_BASE64` | The keystore file, base64 encoded |
+| `RELEASE_STORE_PASSWORD` | `storePassword` from `keystore.properties` |
+| `RELEASE_KEY_ALIAS` | `keyAlias` from `keystore.properties` |
+| `RELEASE_KEY_PASSWORD` | `keyPassword` from `keystore.properties` |
+
+Locally, the release build is signed only when `keystore.properties` exists in the project root. Keep it and the keystore out of git.
+
 ### Checking a release
 
 The `Release check` workflow (`.github/workflows/release-check.yml`) runs when a release is published or edited, and can be started by hand with a tag. It fails with one error line per problem and writes a job summary. It never changes or deletes the release.
