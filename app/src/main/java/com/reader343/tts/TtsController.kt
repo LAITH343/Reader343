@@ -147,7 +147,16 @@ class TtsController @Inject constructor(
         if (value == preferences) return
         preferences = value
         appliedLanguage = null
+        syncPreferredVoice()
         restartIfPlaying()
+    }
+
+    private fun syncPreferredVoice() {
+        val current = _state.value.voice ?: return
+        val name = preferences.voices[current.locale.language] ?: return
+        if (name == current.name) return
+        val preferred = _voices.value.firstOrNull { it.installed && it.name == name } ?: return
+        _state.update { it.copy(voice = preferred, locale = preferred.locale) }
     }
 
     fun setContinuous(value: Boolean) {
