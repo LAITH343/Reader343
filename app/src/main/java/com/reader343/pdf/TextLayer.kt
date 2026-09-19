@@ -1,6 +1,7 @@
 package com.reader343.pdf
 
 import com.reader343.domain.NormRect
+import com.reader343.domain.SpeechSource
 import com.reader343.domain.SpeechUnit
 import com.reader343.domain.isUsableText
 import java.util.Locale
@@ -134,4 +135,14 @@ class TextLayer(
     private companion object {
         const val DEFAULT_CAPACITY = 8
     }
+}
+
+class TextLayerSpeechSource(
+    private val textLayer: TextLayer,
+    override val bookId: Long,
+    override val pageCount: Int,
+    override val locale: Locale = Locale.getDefault(),
+) : SpeechSource {
+
+    override suspend fun units(page: Int): List<SpeechUnit> = textLayer.speechUnits(page, pageCount, locale)
 }
