@@ -217,7 +217,7 @@ fun ReaderScreen(
                         noteActions = noteActions,
                         uiDirection = uiDirection,
                         pageStyle = pageStyle,
-                        spoken = readAloud.unit,
+                        spoken = readAloud.spoken,
                         onPageSettled = onPageSettled,
                         onPageRequestHandled = onPageRequestHandled,
                         onZoomGestureStart = onZoomGestureStart,
@@ -259,9 +259,10 @@ fun ReaderScreen(
                         onDismiss = noteActions::onDismissNote,
                     )
                 }
-                if (readAloud.voicesVisible) {
+                if (readAloud.sheetVisible) {
                     ReadAloudVoicesSheet(readAloud = readAloud, actions = readAloudActions)
                 }
+                if (readAloud.keepScreenOn) KeepScreenOn()
                 if (state.contentsVisible) {
                     ContentsSheet(
                         state = state,
@@ -272,6 +273,15 @@ fun ReaderScreen(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun KeepScreenOn() {
+    val view = LocalView.current
+    DisposableEffect(view) {
+        view.keepScreenOn = true
+        onDispose { view.keepScreenOn = false }
     }
 }
 

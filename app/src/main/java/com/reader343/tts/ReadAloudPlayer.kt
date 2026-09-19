@@ -2,12 +2,19 @@ package com.reader343.tts
 
 import android.content.Context
 import com.reader343.data.repo.ReaderRepository
+import com.reader343.data.repo.SessionHolder
+import com.reader343.data.repo.SessionRepository
+import com.reader343.data.repo.SettingsRepository
 import com.reader343.domain.OutlineEntry
+import com.reader343.domain.ReadAloudSettings
+import com.reader343.domain.SleepTimer
 import com.reader343.domain.SpeechUnit
 import com.reader343.domain.TtsState
 import com.reader343.domain.TtsStatus
 import com.reader343.domain.TtsVoice
+import com.reader343.domain.chapterAt
 import com.reader343.domain.nextReadAloudSpeed
+import com.reader343.domain.voicePreferences
 import com.reader343.pdf.PdfEngine
 import com.reader343.pdf.TextLayer
 import com.reader343.pdf.TextLayerSpeechSource
@@ -16,19 +23,27 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.mapNotNull
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import javax.inject.Inject
 import javax.inject.Provider
@@ -47,6 +62,8 @@ class ReadAloudPlayer @Inject constructor(
     @ApplicationContext private val context: Context,
     private val controller: TtsController,
     private val repository: ReaderRepository,
+    private val sessionRepository: SessionRepository,
+    private val settingsRepository: SettingsRepository,
     private val engines: Provider<PdfEngine>,
 ) {
 
@@ -55,6 +72,10 @@ class ReadAloudPlayer @Inject constructor(
     private var engine: PdfEngine? = null
     private var source: TextLayerSpeechSource? = null
     private var command: Job? = null
+
+    val settings: StateFlow<ReadAloudSettings> = settingsRepository.settings
+        .map { it.readAloud }
+        .stateIn(scope, SharingStarted.Eagerly, ReadAloudSettings())
 
     private val _book = MutableStateFlow<ReadAloudBook?>(null)
     val book: StateFlow<ReadAloudBook?> = _book.asStateFlow()
@@ -88,10 +109,14 @@ class ReadAloudPlayer @Inject constructor(
                 }
             }
         }
+        scope.launch { settings.collect(::apply) }
+        scope.launch { runSleepTimer() }
+        scope.launch { trackListening() }
     }
 
     fun start(bookId: Long, page: Int, sentenceIndex: Int = 0) {
         launchCommand {
+            apply(settingsRepository.settings.first().readAloud)
             val source = mutex.withLock { open(bookId) } ?: return@launchCommand
             controller.clearIssue()
             controller.play(source, page, sentenceIndex)
@@ -131,11 +156,27 @@ class ReadAloudPlayer @Inject constructor(
 
     fun previous() = controller.previous()
 
-    fun cycleSpeed() = controller.setRate(nextReadAloudSpeed(controller.state.value.rate))
+    fun cycleSpeed() {
+        val next = nextReadAloudSpeed(controller.state.value.rate)
+        controller.setRate(next)
+        scope.launch { settingsRepository.setReadAloudSpeed(next) }
+    }
 
-    fun setVoice(voice: TtsVoice?) = controller.setVoice(voice)
+    fun setVoice(voice: TtsVoice) {
+        scope.launch { settingsRepository.setReadAloudVoice(voice.locale.language, voice.name) }
+    }
 
     fun refreshVoices() = controller.refreshVoices()
+
+    fun readInstead() {
+        val language = controller.state.value.missingLanguage ?: return
+        controller.substitute(language)
+        resume()
+    }
+
+    fun awaitVoice() = controller.dismissIssue()
+
+    fun dismissIssue() = controller.clearIssue()
 
     suspend fun pageUnits(page: Int): List<SpeechUnit> {
         val source = source ?: return emptyList()
@@ -182,7 +223,74 @@ class ReadAloudPlayer @Inject constructor(
             coverPath = book.coverPath,
             outline = opened.outline(),
         )
-        return TextLayerSpeechSource(TextLayer(opened), book.id, pageCount).also { source = it }
+        val skip = settings.value.skipFurniture
+        return TextLayerSpeechSource(TextLayer(opened), book.id, pageCount, skipFurniture = skip).also { source = it }
+    }
+
+    private fun apply(value: ReadAloudSettings) {
+        controller.setRate(value.speed)
+        controller.setPitch(value.pitch)
+        controller.setPreferences(value.voicePreferences)
+        controller.setContinuous(value.autoPage)
+        val current = source
+        if (current != null && current.skipFurniture != value.skipFurniture) {
+            val updated = TextLayerSpeechSource(
+                current.textLayer,
+                current.bookId,
+                current.pageCount,
+                skipFurniture = value.skipFurniture,
+            )
+            source = updated
+            controller.reload(updated)
+        }
+    }
+
+    private suspend fun runSleepTimer() {
+        val playing = controller.state.map { it.status == TtsStatus.Playing }.distinctUntilChanged()
+        val timer = settings.map { it.sleep }.distinctUntilChanged()
+        combine(playing, timer, ::Pair).collectLatest { (active, sleep) ->
+            if (!active || sleep == SleepTimer.Off) return@collectLatest
+            val minutes = sleep.minutes
+            if (minutes != null) {
+                delay(minutes * MINUTE_MS)
+            } else {
+                val page = controller.state.value.position?.page ?: return@collectLatest
+                val book = _book.value ?: return@collectLatest
+                val end = book.outline.chapterAt(page, book.pageCount)?.endPage ?: return@collectLatest
+                controller.state.first { (it.position?.page ?: page) >= end }
+            }
+            controller.pause()
+        }
+    }
+
+    private suspend fun trackListening() {
+        controller.state
+            .map { state -> state.bookId.takeIf { state.status == TtsStatus.Playing } }
+            .distinctUntilChanged()
+            .collectLatest { bookId ->
+                if (bookId == null) return@collectLatest
+                sessionRepository.open(bookId, System.currentTimeMillis(), SessionHolder.Listening)
+                var pages = 0
+                try {
+                    coroutineScope {
+                        launch {
+                            controller.state
+                                .mapNotNull { state -> state.position?.page?.takeIf { state.bookId == bookId } }
+                                .distinctUntilChanged()
+                                .drop(1)
+                                .collect { pages++ }
+                        }
+                        while (true) {
+                            delay(CHECKPOINT_MS)
+                            sessionRepository.checkpoint(bookId, System.currentTimeMillis(), pages, SessionHolder.Listening)
+                        }
+                    }
+                } finally {
+                    withContext(NonCancellable) {
+                        sessionRepository.close(bookId, System.currentTimeMillis(), pages, SessionHolder.Listening)
+                    }
+                }
+            }
     }
 
     private suspend fun closeBook(releaseSpeech: Boolean) {
@@ -197,5 +305,7 @@ class ReadAloudPlayer @Inject constructor(
     private companion object {
         const val START_TIMEOUT_MS = 15_000L
         const val IDLE_RELEASE_MS = 60_000L
+        const val CHECKPOINT_MS = 30_000L
+        const val MINUTE_MS = 60_000L
     }
 }

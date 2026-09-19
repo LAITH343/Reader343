@@ -1,8 +1,5 @@
 package com.reader343.ui.reader
 
-import android.content.ActivityNotFoundException
-import android.content.Intent
-import android.speech.tts.TextToSpeech
 import androidx.annotation.DrawableRes
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.snap
@@ -13,7 +10,6 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -22,10 +18,6 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.selection.selectable
-import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -36,26 +28,21 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TooltipAnchorPosition
 import androidx.compose.material3.TooltipBox
 import androidx.compose.material3.TooltipDefaults
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.rememberTooltipState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.disabled
-import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
@@ -71,9 +58,7 @@ import com.reader343.domain.SpeechUnit
 import com.reader343.domain.TtsStatus
 import com.reader343.domain.TtsVoice
 import com.reader343.domain.readAloudSpeedLabel
-import com.reader343.ui.components.AppBottomSheet
 import com.reader343.ui.components.BookCover
-import com.reader343.ui.components.PrimaryButton
 import com.reader343.ui.components.appClickable
 import com.reader343.ui.components.currentLocale
 import com.reader343.ui.components.disabledAlpha
@@ -81,6 +66,8 @@ import com.reader343.ui.components.formatMinutes
 import com.reader343.ui.components.formatNumber
 import com.reader343.ui.components.reducedMotion
 import com.reader343.ui.components.riseIn
+import com.reader343.ui.readaloud.MissingVoice
+import com.reader343.ui.readaloud.VoiceSheet
 import com.reader343.ui.theme.Reader343Theme
 import com.reader343.ui.theme.appColors
 import com.reader343.ui.theme.appShapes
@@ -102,7 +89,13 @@ data class ReadAloudUi(
     val locale: Locale? = null,
     val voices: List<TtsVoice> = emptyList(),
     val voicesVisible: Boolean = false,
+    val highlight: Boolean = true,
+    val keepScreenOn: Boolean = false,
+    val missingLanguage: Locale? = null,
+    val fallbackLanguage: Locale? = null,
 ) {
+    val sheetVisible: Boolean get() = voicesVisible || missingLanguage != null
+    val spoken: SpeechUnit? get() = unit.takeIf { highlight }
     val active: Boolean get() = status != TtsStatus.Idle
     val playing: Boolean get() = status == TtsStatus.Playing
     val shown: Boolean get() = active || availability != ReadAloudAvailability.Hidden
@@ -120,6 +113,8 @@ interface ReadAloudActions {
     fun onShowVoices()
     fun onHideVoices()
     fun onSelectVoice(voice: TtsVoice)
+    fun onAwaitVoice()
+    fun onReadInstead()
 
     companion object {
         val None = object : ReadAloudActions {
@@ -132,6 +127,8 @@ interface ReadAloudActions {
             override fun onShowVoices() = Unit
             override fun onHideVoices() = Unit
             override fun onSelectVoice(voice: TtsVoice) = Unit
+            override fun onAwaitVoice() = Unit
+            override fun onReadInstead() = Unit
         }
     }
 }
@@ -465,195 +462,26 @@ private fun PlayerChip(
 @Composable
 private fun voiceLabel(voice: TtsVoice?, locale: Locale?): String {
     val display = currentLocale()
-    return speechLocale(voice, locale).getDisplayLanguage(display).replaceFirstChar { it.titlecase(display) }
+    return (voice?.locale ?: locale ?: display).getDisplayLanguage(display).replaceFirstChar { it.titlecase(display) }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun ReadAloudVoicesSheet(
     readAloud: ReadAloudUi,
     actions: ReadAloudActions,
 ) {
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    val scope = rememberCoroutineScope()
-    val context = LocalContext.current
-    AppBottomSheet(onDismissRequest = actions::onHideVoices, sheetState = sheetState) {
-        VoicesSheetContent(
-            voices = sheetVoices(readAloud),
-            selected = readAloud.voice,
-            onSelect = actions::onSelectVoice,
-            onInstall = {
-                try {
-                    context.startActivity(
-                        Intent(TextToSpeech.Engine.ACTION_INSTALL_TTS_DATA).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
-                    )
-                } catch (_: ActivityNotFoundException) {
-                }
-            },
-            onDone = {
-                scope.launch { sheetState.hide() }.invokeOnCompletion { actions.onHideVoices() }
-            },
-        )
-    }
-}
-
-private fun speechLocale(voice: TtsVoice?, locale: Locale?): Locale = voice?.locale ?: locale ?: Locale.getDefault()
-
-private fun sheetVoices(readAloud: ReadAloudUi): List<TtsVoice> {
-    val language = speechLocale(readAloud.voice, readAloud.locale).language
-    return readAloud.voices
-        .filter { it.installed || it.locale.language == language }
-        .sortedWith(compareBy({ !it.installed }, { it.locale.language != language }))
-}
-
-@Composable
-private fun VoicesSheetContent(
-    voices: List<TtsVoice>,
-    selected: TtsVoice?,
-    onSelect: (TtsVoice) -> Unit,
-    onInstall: () -> Unit,
-    onDone: () -> Unit,
-) {
-    val colors = MaterialTheme.appColors
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(start = 16.dp, end = 16.dp, bottom = 18.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
-    ) {
-        Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-            Text(
-                text = stringResource(R.string.read_aloud_voices_title),
-                style = MaterialTheme.typography.titleMedium.copy(fontSize = 18.sp),
-                fontWeight = FontWeight.SemiBold,
-                color = colors.ink,
-                modifier = Modifier.semantics { heading() },
-            )
-            Text(
-                text = stringResource(R.string.read_aloud_voices_subtitle),
-                style = MaterialTheme.typography.bodySmall.copy(fontSize = 13.sp),
-                color = colors.ink3,
-            )
-        }
-        LazyColumn(
-            modifier = Modifier
-                .heightIn(max = VoiceListMaxHeight)
-                .selectableGroup(),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-            contentPadding = PaddingValues(0.dp),
-        ) {
-            items(voices, key = { it.name }) { voice ->
-                VoiceRow(
-                    voice = voice,
-                    selected = voice.installed && voice.name == selected?.name,
-                    onClick = { if (voice.installed) onSelect(voice) else onInstall() },
-                )
-            }
-        }
-        PrimaryButton(
-            text = stringResource(R.string.read_aloud_voices_done),
-            onClick = onDone,
-            modifier = Modifier.fillMaxWidth(),
-        )
-    }
-}
-
-@Composable
-private fun VoiceRow(voice: TtsVoice, selected: Boolean, onClick: () -> Unit) {
-    val colors = MaterialTheme.appColors
-    val shape = RoundedCornerShape(15.dp)
-    val display = currentLocale()
-    val interaction = if (voice.installed) {
-        Modifier
-            .clip(shape)
-            .selectable(selected = selected, role = Role.RadioButton, onClick = onClick)
-    } else {
-        Modifier.appClickable(shape = shape, onClick = onClick)
-    }
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .heightIn(min = VoiceRowHeight)
-            .background(if (selected) colors.accTint14 else colors.surf2, shape)
-            .border(1.dp, if (selected) colors.accMid else colors.line2, shape)
-            .then(interaction)
-            .semantics(mergeDescendants = true) {}
-            .padding(horizontal = 12.dp, vertical = 10.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Box(
-            modifier = Modifier
-                .size(34.dp)
-                .background(if (selected) colors.accTint22 else colors.surf2, MaterialTheme.appShapes.iconTile),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(
-                painter = painterResource(if (voice.installed) R.drawable.ic_ph_user_sound else R.drawable.ic_ph_cloud_arrow_down),
-                contentDescription = null,
-                tint = if (selected) colors.accTx else colors.ink3,
-                modifier = Modifier.size(17.dp),
-            )
-        }
-        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(
-                text = voice.locale.getDisplayName(display),
-                style = MaterialTheme.typography.bodyMedium.copy(fontSize = 14.5.sp),
-                fontWeight = FontWeight.SemiBold,
-                color = colors.ink,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Text(
-                text = voice.name,
-                style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.5.sp, textDirection = TextDirection.Ltr),
-                color = colors.ink3,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-        if (voice.installed) {
-            Box(
-                modifier = Modifier
-                    .size(20.dp)
-                    .border(2.dp, if (selected) colors.acc else colors.handle, CircleShape),
-                contentAlignment = Alignment.Center,
-            ) {
-                if (selected) Box(Modifier.size(10.dp).background(colors.acc, CircleShape))
-            }
-        } else {
-            NotInstalledChip()
-        }
-    }
-}
-
-@Composable
-private fun NotInstalledChip() {
-    val amber = MaterialTheme.appColors.amber
-    val shape = MaterialTheme.appShapes.pill
-    Row(
-        modifier = Modifier
-            .height(26.dp)
-            .background(amber.fill, shape)
-            .border(1.dp, amber.border, shape)
-            .padding(horizontal = 10.dp),
-        horizontalArrangement = Arrangement.spacedBy(5.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Icon(
-            painter = painterResource(R.drawable.ic_ph_cloud_arrow_down),
-            contentDescription = null,
-            tint = amber.text,
-            modifier = Modifier.size(13.dp),
-        )
-        Text(
-            text = stringResource(R.string.read_aloud_voice_not_installed),
-            style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.5.sp),
-            fontWeight = FontWeight.Bold,
-            color = amber.text,
-            maxLines = 1,
-        )
-    }
+    val missing = readAloud.missingLanguage
+    VoiceSheet(
+        voices = readAloud.voices,
+        selected = readAloud.voice,
+        language = (readAloud.voice?.locale ?: readAloud.locale ?: currentLocale()).language,
+        onSelect = actions::onSelectVoice,
+        onOpenSettings = { actions.onAwaitVoice() },
+        onDismiss = actions::onHideVoices,
+        missing = missing?.let { MissingVoice(it) },
+        fallback = readAloud.fallbackLanguage,
+        onReadInstead = actions::onReadInstead,
+    )
 }
 
 private val ReadAloudButtonSize = 44.dp
@@ -662,8 +490,6 @@ private val MinTouch = 44.dp
 private val PlayWidth = 52.dp
 private val VoiceChipMaxWidth = 108.dp
 private val ProgressHeight = 3.dp
-private val VoiceRowHeight = 60.dp
-private val VoiceListMaxHeight = 360.dp
 private const val ProgressMs = 300
 private const val MIN_REMAINING_MS = 60_000L
 
@@ -724,22 +550,6 @@ private fun ReadAloudMiniPlayerRtlPreview() {
                 actions = ReadAloudActions.None,
             )
             ScanNotice()
-        }
-    }
-}
-
-@Preview(showBackground = true)
-@Composable
-private fun ReadAloudVoicesPreview() {
-    Reader343Theme {
-        Column(Modifier.background(MaterialTheme.appColors.surf)) {
-            VoicesSheetContent(
-                voices = PreviewVoices,
-                selected = PreviewVoices.first(),
-                onSelect = {},
-                onInstall = {},
-                onDone = {},
-            )
         }
     }
 }

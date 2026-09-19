@@ -125,7 +125,13 @@ class TextLayer(
     suspend fun get(page: Int): PageText =
         cache[page] ?: engine.loadText(page).also { cache[page] = it }
 
-    suspend fun speechUnits(page: Int, pageCount: Int, locale: Locale = Locale.getDefault()): List<SpeechUnit> {
+    suspend fun speechUnits(
+        page: Int,
+        pageCount: Int,
+        locale: Locale = Locale.getDefault(),
+        skipFurniture: Boolean = true,
+    ): List<SpeechUnit> {
+        if (!skipFurniture) return TextSegmenter.segment(get(page), locale, skipFurniture = false)
         val neighbors = listOf(page - 1, page + 1).filter { it in 0 until pageCount }.map { get(it) }
         return TextSegmenter.segment(get(page), locale, neighbors)
     }
@@ -138,11 +144,13 @@ class TextLayer(
 }
 
 class TextLayerSpeechSource(
-    private val textLayer: TextLayer,
+    val textLayer: TextLayer,
     override val bookId: Long,
     override val pageCount: Int,
     override val locale: Locale = Locale.getDefault(),
+    val skipFurniture: Boolean = true,
 ) : SpeechSource {
 
-    override suspend fun units(page: Int): List<SpeechUnit> = textLayer.speechUnits(page, pageCount, locale)
+    override suspend fun units(page: Int): List<SpeechUnit> =
+        textLayer.speechUnits(page, pageCount, locale, skipFurniture)
 }

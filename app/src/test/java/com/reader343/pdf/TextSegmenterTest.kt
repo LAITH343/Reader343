@@ -78,6 +78,20 @@ class TextSegmenterTest {
     }
 
     @Test
+    fun keepsFurnitureWhenNotSkipping() {
+        val body = arrayOf("First line of the body.", "Second line of it.", "Third line here.")
+        val units = TextSegmenter.segment(page(*body, "42"), Locale.ENGLISH, skipFurniture = false).map { it.text }
+        assertEquals("Third line here. 42", units.last())
+    }
+
+    @Test
+    fun dropsReferenceMarksFromSpokenText() {
+        assertEquals(listOf("As shown before, it holds."), texts(page("As shown before [12], it holds.")))
+        assertEquals(listOf("Proved by Euler."), texts(page("Proved by Euler³.")))
+        assertEquals(listOf("See [1, 2] here."), TextSegmenter.segment(page("See [1, 2] here."), Locale.ENGLISH, skipFurniture = false).map { it.text })
+    }
+
+    @Test
     fun keepsNumbersInsideBody() {
         val units = texts(page("Line one is here.", "The year was", "1984", "and it rained.", "Line five is here.", "Line six is here."))
         assertTrue(units.contains("The year was 1984 and it rained."))

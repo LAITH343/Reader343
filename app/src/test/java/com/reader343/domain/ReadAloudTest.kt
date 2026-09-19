@@ -1,6 +1,7 @@
 package com.reader343.domain
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Test
 
 class ReadAloudTest {
@@ -90,5 +91,32 @@ class ReadAloudTest {
         val saved = listOf(NormRect(0.2f, 0.1f, 0.4f, 0.12f))
         assertEquals(listOf(second), spokenFillRects(listOf(first, second), saved))
         assertEquals(listOf(first, second), spokenFillRects(listOf(first, second), emptyList()))
+    }
+
+    @Test
+    fun sleepTimerCyclesAndWraps() {
+        assertEquals(
+            listOf(SleepTimer.Minutes15, SleepTimer.Minutes30, SleepTimer.Minutes60, SleepTimer.EndOfChapter, SleepTimer.Off),
+            generateSequence(SleepTimer.Off.next()) { it.next() }.take(5).toList(),
+        )
+    }
+
+    @Test
+    fun arabicTextUsesArabicVoice() {
+        assertEquals("ar", speechLanguage("كان يا ما كان (2021).", "en"))
+        assertEquals("en", speechLanguage("It was a bright cold day.", "en"))
+        assertEquals("fr", speechLanguage("Il fait beau.", "fr"))
+    }
+
+    @Test
+    fun latinTextFallsBackWhenArabicPreferred() {
+        assertEquals("en", speechLanguage("It was a bright cold day.", "ar"))
+        assertEquals("ar", speechLanguage("12 - 14", "ar"))
+    }
+
+    @Test
+    fun fallbackAvoidsMissingLanguage() {
+        assertEquals("fr", VoicePreferences(language = "fr").fallback("ar"))
+        assertNotEquals("ar", VoicePreferences(language = "ar").fallback("ar"))
     }
 }

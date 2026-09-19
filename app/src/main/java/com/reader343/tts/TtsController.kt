@@ -12,7 +12,9 @@ import com.reader343.domain.TtsIssue
 import com.reader343.domain.TtsState
 import com.reader343.domain.TtsStatus
 import com.reader343.domain.TtsVoice
+import com.reader343.domain.VoicePreferences
 import com.reader343.domain.position
+import com.reader343.domain.speechLanguage
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
@@ -49,6 +51,14 @@ class TtsController @Inject constructor(
     private var lastQueuedPage = -1
     private var endReached = false
     private var errors = 0
+    private var drained = false
+    private var blocked: Blocked? = null
+    private var preferences = VoicePreferences()
+    private var continuous = true
+    private val substitutes = mutableSetOf<String>()
+    private var appliedLanguage: String? = null
+    private var appliedVoice: TtsVoice? = null
+    private val queuedVoices = HashMap<String, TtsVoice?>()
     private var command: Job? = null
     private var append: Job? = null
 
@@ -93,6 +103,12 @@ class TtsController @Inject constructor(
         launchCommand { speakFrom(position) }
     }
 
+    fun reload(source: SpeechSource) {
+        if (cursor?.source === source) return
+        cursor = SpeechCursor(source)
+        restartIfPlaying()
+    }
+
     fun toggle() {
         when (_state.value.status) {
             TtsStatus.Playing -> pause()
@@ -127,34 +143,60 @@ class TtsController @Inject constructor(
         restartIfPlaying()
     }
 
-    fun setLocale(locale: Locale?) {
-        if (locale == _state.value.locale) return
-        _state.update { it.copy(locale = locale, voice = null) }
+    fun setPreferences(value: VoicePreferences) {
+        if (value == preferences) return
+        preferences = value
+        appliedLanguage = null
         restartIfPlaying()
     }
 
-    fun setVoice(voice: TtsVoice?) {
-        if (voice == _state.value.voice) return
-        _state.update { it.copy(voice = voice, locale = voice?.locale ?: it.locale) }
-        restartIfPlaying()
+    fun setContinuous(value: Boolean) {
+        continuous = value
+    }
+
+    fun substitute(language: String) {
+        substitutes += language
+        appliedLanguage = null
+        clearIssue()
     }
 
     fun clearIssue() {
+        _state.update { it.copy(issue = null, missingLanguage = null) }
+    }
+
+    fun dismissIssue() {
         _state.update { it.copy(issue = null) }
     }
 
     fun refreshVoices() {
-        scope.launch { engine()?.let(::loadVoices) }
+        scope.launch {
+            val engine = engine() ?: return@launch
+            loadVoices(engine)
+            val missing = _state.value.missingLanguage
+            if (missing != null && _voices.value.any { it.installed && it.locale.language == missing }) {
+                appliedLanguage = null
+                clearIssue()
+                if (_state.value.status == TtsStatus.Paused) resume()
+            }
+            if (cursor == null && _state.value.status == TtsStatus.Idle) shutdown()
+        }
     }
 
     fun release() {
         command?.cancel()
         silence()
+        shutdown()
+        cursor = null
+        substitutes.clear()
+        _state.update { TtsState(rate = it.rate, pitch = it.pitch) }
+    }
+
+    private fun shutdown() {
         tts?.shutdown()
         tts = null
         ready = null
-        cursor = null
-        _state.update { TtsState(rate = it.rate, pitch = it.pitch, locale = it.locale, voice = it.voice) }
+        appliedLanguage = null
+        appliedVoice = null
     }
 
     private fun step(target: suspend (SpeechCursor, SpeechPosition) -> SpeechUnit?) {
@@ -186,15 +228,19 @@ class TtsController @Inject constructor(
     private fun silence() {
         append?.cancel()
         queued.clear()
+        queuedVoices.clear()
         lastQueuedPage = -1
         endReached = false
+        drained = false
+        blocked = null
         tts?.stop()
     }
 
     private suspend fun speakFrom(position: SpeechPosition) {
         val cursor = cursor ?: return
         val engine = engine() ?: return
-        if (!configure(engine, cursor.source.locale)) return
+        engine.setSpeechRate(_state.value.rate)
+        engine.setPitch(_state.value.pitch)
         val units = guarded { cursor.from(position) } ?: return
         if (units.isEmpty()) {
             finish()
@@ -203,17 +249,42 @@ class TtsController @Inject constructor(
         errors = 0
         if (!enqueue(engine, units, TextToSpeech.QUEUE_FLUSH)) return
         val first = units.first()
-        _state.update { it.copy(status = TtsStatus.Playing, position = first.position, unit = first, issue = null) }
+        val voice = queuedVoices[first.id]
+        _state.update {
+            it.copy(
+                status = TtsStatus.Playing,
+                position = first.position,
+                unit = first,
+                voice = voice,
+                locale = voice?.locale,
+                issue = null,
+                missingLanguage = null,
+            )
+        }
     }
 
     private fun enqueue(engine: TextToSpeech, units: List<SpeechUnit>, mode: Int): Boolean {
         units.forEachIndexed { index, unit ->
+            val language = languageFor(unit)
+            val issue = applyLanguage(engine, language)
+            if (issue != null) {
+                val pending = Blocked(unit, issue, language)
+                if (index == 0 && (mode == TextToSpeech.QUEUE_FLUSH || drained)) {
+                    failAt(pending)
+                    return false
+                }
+                blocked = pending
+                lastQueuedPage = unit.page
+                return true
+            }
             queued[unit.id] = unit
+            queuedVoices[unit.id] = appliedVoice
             val queueMode = if (index == 0) mode else TextToSpeech.QUEUE_ADD
             if (engine.speak(unit.text, queueMode, null, unit.id) != TextToSpeech.SUCCESS) {
                 fail(TtsIssue.PlaybackFailed)
                 return false
             }
+            drained = false
         }
         lastQueuedPage = units.last().page
         return true
@@ -224,8 +295,9 @@ class TtsController @Inject constructor(
         if (_state.value.status != TtsStatus.Playing) return
         val iterator = queued.keys.iterator()
         while (iterator.hasNext() && iterator.next() != id) iterator.remove()
-        _state.update { it.copy(position = unit.position, unit = unit) }
-        if (queued.keys.last() == id) appendNext()
+        val voice = queuedVoices[id]
+        _state.update { it.copy(position = unit.position, unit = unit, voice = voice, locale = voice?.locale) }
+        if (queued.keys.last() == id && continuous) appendNext()
     }
 
     private fun onUnitDone(id: String) {
@@ -233,34 +305,60 @@ class TtsController @Inject constructor(
         if (!queued.containsKey(id)) return
         errors = 0
         if (queued.keys.last() != id) return
-        if (endReached) finish() else appendNext()
+        advance()
     }
 
     private fun onUnitError(id: String, code: Int) {
         if (_state.value.status != TtsStatus.Playing) return
         if (!queued.containsKey(id)) return
         when {
-            code == TextToSpeech.ERROR_NOT_INSTALLED_YET -> fail(TtsIssue.MissingVoiceData)
+            code == TextToSpeech.ERROR_NOT_INSTALLED_YET -> fail(TtsIssue.MissingVoiceData, appliedLanguage)
             code == TextToSpeech.ERROR_NETWORK || code == TextToSpeech.ERROR_NETWORK_TIMEOUT ->
-                fail(TtsIssue.MissingVoiceData)
+                fail(TtsIssue.MissingVoiceData, appliedLanguage)
             ++errors >= MAX_ERRORS -> fail(TtsIssue.PlaybackFailed)
-            queued.keys.last() == id -> if (endReached) finish() else appendNext()
+            queued.keys.last() == id -> advance()
+        }
+    }
+
+    private fun advance() {
+        drained = true
+        val pending = blocked
+        when {
+            pending != null -> failAt(pending)
+            endReached -> finish()
+            !continuous -> holdAtNextPage()
+            else -> appendNext()
         }
     }
 
     private fun appendNext() {
-        if (append?.isActive == true || endReached) return
+        if (append?.isActive == true || endReached || blocked != null) return
         val cursor = cursor ?: return
         val page = lastQueuedPage
         append = scope.launch {
             val engine = tts ?: return@launch
-            val units = guarded { cursor.after(page) } ?: return@launch
-            if (units == null) {
+            val units = guarded { cursor.after(page).orEmpty() } ?: return@launch
+            if (units.isEmpty()) {
                 endReached = true
-                if (!engine.isSpeaking) finish()
+                if (drained) finish()
                 return@launch
             }
             enqueue(engine, units, TextToSpeech.QUEUE_ADD)
+        }
+    }
+
+    private fun holdAtNextPage() {
+        val cursor = cursor ?: return
+        val page = lastQueuedPage
+        append = scope.launch {
+            val units = guarded { cursor.after(page).orEmpty() } ?: return@launch
+            val first = units.firstOrNull()
+            if (first == null) {
+                finish()
+                return@launch
+            }
+            silence()
+            _state.update { it.copy(status = TtsStatus.Paused, position = first.position, unit = first) }
         }
     }
 
@@ -269,11 +367,25 @@ class TtsController @Inject constructor(
         _state.update { it.copy(status = TtsStatus.Idle, unit = null) }
     }
 
-    private fun fail(issue: TtsIssue) {
+    private fun failAt(pending: Blocked) {
+        _state.update { it.copy(position = pending.unit.position, unit = pending.unit) }
+        fail(pending.issue, pending.language)
+    }
+
+    private fun fail(issue: TtsIssue, language: String? = null) {
         silence()
         _state.update {
-            it.copy(status = if (it.position != null) TtsStatus.Paused else TtsStatus.Idle, issue = issue)
+            it.copy(
+                status = if (it.position != null) TtsStatus.Paused else TtsStatus.Idle,
+                issue = issue,
+                missingLanguage = language ?: it.missingLanguage,
+            )
         }
+    }
+
+    private fun languageFor(unit: SpeechUnit): String {
+        val language = speechLanguage(unit.text, preferences.preferred())
+        return if (language in substitutes) preferences.fallback(language) else language
     }
 
     private suspend fun <T> guarded(block: suspend () -> T): T? =
@@ -318,45 +430,44 @@ class TtsController @Inject constructor(
         return created
     }
 
-    private fun configure(engine: TextToSpeech, fallback: Locale): Boolean {
-        val current = _state.value
-        engine.setSpeechRate(current.rate)
-        engine.setPitch(current.pitch)
-        val chosen = current.voice?.let { voice -> offlineVoices(engine).firstOrNull { it.name == voice.name } }
-        if (chosen != null) {
-            if (chosen.features.orEmpty().contains(TextToSpeech.Engine.KEY_FEATURE_NOT_INSTALLED)) {
-                fail(TtsIssue.MissingVoiceData)
-                return false
-            }
-            if (engine.setVoice(chosen) == TextToSpeech.SUCCESS) return true
+    private fun applyLanguage(engine: TextToSpeech, language: String): TtsIssue? {
+        if (language == appliedLanguage) return null
+        val installed = offlineVoices(engine).filter(::isInstalled)
+        val preferred = preferences.voices[language]?.let { name -> installed.firstOrNull { it.name == name } }
+        val chosen = preferred ?: defaultVoice(engine, installed.filter { it.locale.language == language })
+        if (chosen != null && engine.setVoice(chosen) == TextToSpeech.SUCCESS) {
+            appliedLanguage = language
+            appliedVoice = chosen.toTtsVoice()
+            return null
         }
-        val locale = current.locale ?: fallback
-        when (engine.setLanguage(locale)) {
-            TextToSpeech.LANG_MISSING_DATA -> {
-                fail(TtsIssue.MissingVoiceData)
-                return false
-            }
-            TextToSpeech.LANG_NOT_SUPPORTED -> {
-                fail(TtsIssue.LanguageUnsupported)
-                return false
-            }
+        when (engine.setLanguage(Locale.forLanguageTag(language))) {
+            TextToSpeech.LANG_MISSING_DATA -> return TtsIssue.MissingVoiceData
+            TextToSpeech.LANG_NOT_SUPPORTED -> return TtsIssue.LanguageUnsupported
         }
-        if (activeVoice(engine)?.isNetworkConnectionRequired == true) {
-            val offline = offlineVoices(engine)
-                .filter { it.locale.language == locale.language && isInstalled(it) }
-                .maxByOrNull { it.quality }
-            if (offline == null) {
-                fail(TtsIssue.MissingVoiceData)
-                return false
-            }
-            engine.setVoice(offline)
-        }
-        return true
+        val active = activeVoice(engine)
+        if (active == null || active.isNetworkConnectionRequired || !isInstalled(active)) return TtsIssue.MissingVoiceData
+        appliedLanguage = language
+        appliedVoice = active.toTtsVoice()
+        return null
     }
+
+    private fun defaultVoice(engine: TextToSpeech, candidates: List<Voice>): Voice? {
+        if (candidates.isEmpty()) return null
+        val engineDefault = runCatching { engine.defaultVoice }.getOrNull()
+        candidates.firstOrNull { it.name == engineDefault?.name }?.let { return it }
+        val country = Locale.getDefault().country
+        return candidates.sortedWith(
+            compareByDescending<Voice> { it.locale.country == country }
+                .thenByDescending { it.quality }
+                .thenBy { it.latency },
+        ).first()
+    }
+
+    private fun Voice.toTtsVoice() = TtsVoice(name = name, locale = locale, installed = isInstalled(this))
 
     private fun loadVoices(engine: TextToSpeech) {
         _voices.value = offlineVoices(engine)
-            .map { TtsVoice(name = it.name, locale = it.locale, installed = isInstalled(it)) }
+            .map { it.toTtsVoice() }
             .sortedWith(compareBy({ it.locale.toLanguageTag() }, { it.name }))
     }
 
@@ -368,6 +479,8 @@ class TtsController @Inject constructor(
 
     private fun isInstalled(voice: Voice): Boolean =
         !voice.features.orEmpty().contains(TextToSpeech.Engine.KEY_FEATURE_NOT_INSTALLED)
+
+    private class Blocked(val unit: SpeechUnit, val issue: TtsIssue, val language: String)
 
     companion object {
         const val MIN_RATE = 0.25f

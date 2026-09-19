@@ -101,7 +101,7 @@ class TtsPlaybackService : Service() {
         when (change) {
             AudioManager.AUDIOFOCUS_GAIN -> if (pausedByFocus) {
                 pausedByFocus = false
-                if (RESUME_AFTER_INTERRUPTION) controller.resume() else render(controller.state.value)
+                if (settings.readAloud.resumeAfterCall) controller.resume() else render(controller.state.value)
             }
             AudioManager.AUDIOFOCUS_LOSS -> {
                 pausedByFocus = false
@@ -489,7 +489,6 @@ class TtsPlaybackService : Service() {
         private const val NOTIFICATION_ID = 4301
         private const val SESSION_TAG = "ReadAloud"
         private const val COVER_SIZE_PX = 320
-        private const val RESUME_AFTER_INTERRUPTION = true
         private const val ACTION_START = "com.reader343.action.READ_ALOUD_START"
         private const val ACTION_TOGGLE = "com.reader343.action.READ_ALOUD_TOGGLE"
         private const val ACTION_NEXT = "com.reader343.action.READ_ALOUD_NEXT"

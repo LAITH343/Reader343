@@ -27,6 +27,7 @@ data class TtsState(
     val locale: Locale? = null,
     val voice: TtsVoice? = null,
     val issue: TtsIssue? = null,
+    val missingLanguage: String? = null,
 )
 
 interface SpeechSource {
@@ -44,6 +45,65 @@ fun nextReadAloudSpeed(current: Float): Float =
 fun readAloudSpeedLabel(speed: Float): String {
     val plain = BigDecimal(speed.toString()).stripTrailingZeros().toPlainString()
     return (if (plain.contains('.')) plain else "$plain.0") + "×"
+}
+
+val ReadAloudPitches: List<Float> = listOf(0.8f, 0.9f, 1f, 1.1f, 1.25f)
+
+enum class SleepTimer(val minutes: Int?) {
+    Off(null),
+    Minutes15(15),
+    Minutes30(30),
+    Minutes60(60),
+    EndOfChapter(null),
+    ;
+
+    fun next(): SleepTimer = entries[(ordinal + 1) % entries.size]
+}
+
+data class ReadAloudSettings(
+    val speed: Float = 1f,
+    val pitch: Float = 1f,
+    val voices: Map<String, String> = emptyMap(),
+    val language: String? = null,
+    val highlight: Boolean = true,
+    val autoPage: Boolean = true,
+    val skipFurniture: Boolean = true,
+    val resumeAfterCall: Boolean = true,
+    val sleep: SleepTimer = SleepTimer.Off,
+    val keepScreenOn: Boolean = false,
+)
+
+data class VoicePreferences(
+    val voices: Map<String, String> = emptyMap(),
+    val language: String? = null,
+) {
+    fun preferred(): String = language ?: Locale.getDefault().language
+
+    fun fallback(missing: String): String {
+        val preferred = preferred()
+        if (preferred != missing) return preferred
+        return Locale.getDefault().language.takeIf { it != missing } ?: LATIN_FALLBACK
+    }
+}
+
+val ReadAloudSettings.voicePreferences: VoicePreferences get() = VoicePreferences(voices, language)
+
+fun speechLanguage(text: String, preferred: String): String {
+    var arabic = 0
+    var latin = 0
+    for (c in text) {
+        if (!c.isLetter()) continue
+        when (Character.UnicodeScript.of(c.code)) {
+            Character.UnicodeScript.ARABIC -> arabic++
+            Character.UnicodeScript.LATIN -> latin++
+            else -> Unit
+        }
+    }
+    return when {
+        arabic > latin -> ARABIC
+        latin > arabic && preferred == ARABIC -> LATIN_FALLBACK
+        else -> preferred
+    }
 }
 
 enum class ReadAloudAvailability { Ready, NoText, Hidden }
@@ -89,4 +149,6 @@ fun estimateReadAloudProgress(
 }
 
 private const val SPEED_EPSILON = 0.01f
+private const val ARABIC = "ar"
+private const val LATIN_FALLBACK = "en"
 private const val CHARS_PER_SECOND = 14

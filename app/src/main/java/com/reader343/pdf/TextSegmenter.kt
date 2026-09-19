@@ -17,9 +17,19 @@ object TextSegmenter {
         RegexOption.IGNORE_CASE,
     )
 
-    fun segment(page: PageText, locale: Locale = Locale.getDefault(), neighbors: List<PageText> = emptyList()): List<SpeechUnit> {
+    private val spaces = Regex(" {2,}")
+
+    private val referenceMark = Regex("""\s*(?:\[\p{Nd}{1,3}(?:\s?[,\p{Pd}]\s?\p{Nd}{1,3})*]|[\u00B9\u00B2\u00B3\u2070-\u2079]+)""")
+
+    fun segment(
+        page: PageText,
+        locale: Locale = Locale.getDefault(),
+        neighbors: List<PageText> = emptyList(),
+        skipFurniture: Boolean = true,
+    ): List<SpeechUnit> {
         val lines = contentLines(page.chars)
         if (lines.isEmpty()) return emptyList()
+        if (!skipFurniture) return units(page, lines, locale, skipFurniture)
         val neighborSignatures = neighbors.flatMap { neighbor ->
             edges(contentLines(neighbor.chars)).mapNotNull { signature(neighbor.chars, it) }
         }.toSet()
@@ -27,9 +37,13 @@ object TextSegmenter {
         val kept = lines.filterNot { line ->
             line in edgeLines && (isPageNumber(page.chars, line) || signature(page.chars, line) in neighborSignatures)
         }
-        val (text, map) = clean(page.chars, kept)
+        return units(page, kept, locale, skipFurniture)
+    }
+
+    private fun units(page: PageText, lines: List<IntRange>, locale: Locale, skipFurniture: Boolean): List<SpeechUnit> {
+        val (text, map) = clean(page.chars, lines)
         return sentences(text, locale).flatMap { split(text, it) }
-            .mapNotNull { range -> unitFor(page, text, map, range) }
+            .mapNotNull { range -> unitFor(page, text, map, range, skipFurniture) }
             .mapIndexed { index, unit -> unit.copy(sentenceIndex = index) }
     }
 
@@ -159,13 +173,14 @@ object TextSegmenter {
         return result
     }
 
-    private fun unitFor(page: PageText, text: String, map: IntArray, range: IntRange): SpeechUnit? {
+    private fun unitFor(page: PageText, text: String, map: IntArray, range: IntRange, skipFurniture: Boolean): SpeechUnit? {
         var first = range.first
         var last = range.last
         while (first <= last && text[first].isWhitespace()) first++
         while (last >= first && text[last].isWhitespace()) last--
         if (first > last) return null
-        val sentence = text.substring(first, last + 1)
+        val raw = text.substring(first, last + 1)
+        val sentence = if (skipFurniture) raw.replace(referenceMark, "").replace(spaces, " ").trim() else raw
         if (sentence.none { it.isLetterOrDigit() }) return null
         val indices = (first..last).map { map[it] }.filter { it >= 0 }
         if (indices.isEmpty()) return null

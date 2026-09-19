@@ -48,6 +48,8 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
@@ -57,8 +59,11 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
@@ -74,8 +79,14 @@ import com.reader343.domain.DailyGoal
 import com.reader343.domain.GoalContext
 import com.reader343.domain.GoalUnit
 import com.reader343.domain.PageAppearance
+import com.reader343.domain.ReadAloudPitches
+import com.reader343.domain.ReadAloudSettings
+import com.reader343.domain.ReadAloudSpeeds
 import com.reader343.domain.ReminderSettings
+import com.reader343.domain.SleepTimer
 import com.reader343.domain.ThemeMode
+import com.reader343.domain.TtsVoice
+import com.reader343.domain.readAloudSpeedLabel
 import com.reader343.ui.components.AppCard
 import com.reader343.ui.components.AppSwitch
 import com.reader343.ui.components.LoadingState
@@ -91,6 +102,9 @@ import com.reader343.ui.components.formatMinutes
 import com.reader343.ui.components.formatNumber
 import com.reader343.ui.metadata.MetadataPickerHost
 import com.reader343.ui.metadata.rememberMetadataPicker
+import com.reader343.ui.readaloud.NotInstalledChip
+import com.reader343.ui.readaloud.VoiceSheet
+import com.reader343.ui.readaloud.voiceDisplayName
 import com.reader343.ui.theme.PaperSwatch
 import com.reader343.ui.theme.Reader343Theme
 import com.reader343.ui.theme.appColors
@@ -101,8 +115,35 @@ import kotlinx.coroutines.launch
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 import java.time.format.DecimalStyle
+import java.util.Locale
 
 enum class ReminderKind { Daily, Streak }
+
+interface ReadAloudSettingsActions {
+    fun onShowVoices()
+    fun onSpeed(value: Float)
+    fun onPitch(value: Float)
+    fun onHighlight(value: Boolean)
+    fun onAutoPage(value: Boolean)
+    fun onSkipFurniture(value: Boolean)
+    fun onResumeAfterCall(value: Boolean)
+    fun onKeepScreenOn(value: Boolean)
+    fun onSleep(value: SleepTimer)
+
+    companion object {
+        val None = object : ReadAloudSettingsActions {
+            override fun onShowVoices() = Unit
+            override fun onSpeed(value: Float) = Unit
+            override fun onPitch(value: Float) = Unit
+            override fun onHighlight(value: Boolean) = Unit
+            override fun onAutoPage(value: Boolean) = Unit
+            override fun onSkipFurniture(value: Boolean) = Unit
+            override fun onResumeAfterCall(value: Boolean) = Unit
+            override fun onKeepScreenOn(value: Boolean) = Unit
+            override fun onSleep(value: SleepTimer) = Unit
+        }
+    }
+}
 
 @Composable
 fun SettingsRoute(
@@ -112,6 +153,9 @@ fun SettingsRoute(
     val picker = rememberMetadataPicker()
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val update by viewModel.update.collectAsStateWithLifecycle()
+    val voices by viewModel.voices.collectAsStateWithLifecycle()
+    var voiceSheet by rememberSaveable { mutableStateOf(false) }
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { viewModel.refreshVoices() }
     val access = rememberNotificationAccess()
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
@@ -152,6 +196,21 @@ fun SettingsRoute(
             onReview = { state?.reviewBookIds?.firstOrNull()?.let(picker::openPicker) },
         ),
         update = update,
+        voices = voices,
+        readAloudActions = object : ReadAloudSettingsActions {
+            override fun onShowVoices() {
+                viewModel.refreshVoices()
+                voiceSheet = true
+            }
+            override fun onSpeed(value: Float) = viewModel.setReadAloudSpeed(value)
+            override fun onPitch(value: Float) = viewModel.setReadAloudPitch(value)
+            override fun onHighlight(value: Boolean) = viewModel.setReadAloudHighlight(value)
+            override fun onAutoPage(value: Boolean) = viewModel.setReadAloudAutoPage(value)
+            override fun onSkipFurniture(value: Boolean) = viewModel.setReadAloudSkipFurniture(value)
+            override fun onResumeAfterCall(value: Boolean) = viewModel.setReadAloudResumeAfterCall(value)
+            override fun onKeepScreenOn(value: Boolean) = viewModel.setReadAloudKeepScreenOn(value)
+            override fun onSleep(value: SleepTimer) = viewModel.setReadAloudSleep(value)
+        },
         snackbarHostState = snackbarHostState,
         notificationsBlocked = !access.allowed,
         onFixNotifications = {
@@ -164,6 +223,22 @@ fun SettingsRoute(
     )
 
     DailyGoalSheetHost(visible = goalSheet, onDismiss = { goalSheet = false })
+
+    val loaded = state
+    if (voiceSheet && loaded != null) {
+        val aloud = loaded.settings.readAloud
+        VoiceSheet(
+            voices = voices,
+            selected = aloud.selectedVoice(voices),
+            language = aloud.preferredLanguage(),
+            onSelect = viewModel::selectVoice,
+            onOpenSettings = {
+                viewModel.awaitVoice(it)
+                voiceSheet = false
+            },
+            onDismiss = { voiceSheet = false },
+        )
+    }
 
     MetadataPickerHost(
         viewModel = picker,
@@ -224,6 +299,8 @@ fun SettingsScreen(
     notificationsBlocked: Boolean = false,
     onFixNotifications: () -> Unit = {},
     update: UpdateSummary? = null,
+    voices: List<TtsVoice> = emptyList(),
+    readAloudActions: ReadAloudSettingsActions = ReadAloudSettingsActions.None,
 ) {
     var editTime by rememberSaveable { mutableStateOf(false) }
 
@@ -257,6 +334,8 @@ fun SettingsScreen(
                     notificationsBlocked = notificationsBlocked,
                     onFixNotifications = onFixNotifications,
                     update = update,
+                    voices = voices,
+                    readAloudActions = readAloudActions,
                 )
             }
         }
@@ -294,6 +373,8 @@ private fun LazyListScope.settingsContent(
     notificationsBlocked: Boolean,
     onFixNotifications: () -> Unit,
     update: UpdateSummary?,
+    voices: List<TtsVoice>,
+    readAloudActions: ReadAloudSettingsActions,
 ) {
     val settings = state.settings
     val reminders = settings.reminders
@@ -333,6 +414,11 @@ private fun LazyListScope.settingsContent(
                 }
             }
         }
+    }
+
+    item(key = "read_aloud_label") { GroupLabel(R.string.settings_read_aloud) }
+    item(key = "read_aloud") {
+        ReadAloudGroup(settings = settings.readAloud, voices = voices, actions = readAloudActions)
     }
 
     item(key = "book_info_label") { GroupLabel(R.string.book_info_title) }
@@ -575,6 +661,237 @@ private fun SwitchRow(
         RowText(title = title, body = body, modifier = Modifier.weight(1f))
         AppSwitch(checked = checked, onCheckedChange = null)
     }
+}
+
+@Composable
+private fun ReadAloudGroup(
+    settings: ReadAloudSettings,
+    voices: List<TtsVoice>,
+    actions: ReadAloudSettingsActions,
+) {
+    SettingsGroup {
+        VoiceRow(settings = settings, voices = voices, onClick = actions::onShowVoices)
+        GroupDivider()
+        RateGroup(
+            title = stringResource(R.string.read_aloud_speed),
+            options = ReadAloudSpeeds,
+            value = settings.speed,
+            onSelect = actions::onSpeed,
+        )
+        GroupDivider()
+        RateGroup(
+            title = stringResource(R.string.settings_read_aloud_pitch),
+            options = ReadAloudPitches,
+            value = settings.pitch,
+            onSelect = actions::onPitch,
+        )
+        GroupDivider()
+        SwitchRow(
+            title = stringResource(R.string.settings_read_aloud_highlight),
+            body = stringResource(R.string.settings_read_aloud_highlight_hint),
+            checked = settings.highlight,
+            onCheckedChange = actions::onHighlight,
+        )
+        GroupDivider()
+        SwitchRow(
+            title = stringResource(R.string.settings_read_aloud_auto_page),
+            body = stringResource(R.string.settings_read_aloud_auto_page_hint),
+            checked = settings.autoPage,
+            onCheckedChange = actions::onAutoPage,
+        )
+        GroupDivider()
+        SwitchRow(
+            title = stringResource(R.string.settings_read_aloud_skip),
+            body = stringResource(R.string.settings_read_aloud_skip_hint),
+            checked = settings.skipFurniture,
+            onCheckedChange = actions::onSkipFurniture,
+        )
+        GroupDivider()
+        SwitchRow(
+            title = stringResource(R.string.settings_read_aloud_resume),
+            body = stringResource(R.string.settings_read_aloud_resume_hint),
+            checked = settings.resumeAfterCall,
+            onCheckedChange = actions::onResumeAfterCall,
+        )
+        GroupDivider()
+        SwitchRow(
+            title = stringResource(R.string.settings_read_aloud_screen),
+            body = stringResource(R.string.settings_read_aloud_screen_hint),
+            checked = settings.keepScreenOn,
+            onCheckedChange = actions::onKeepScreenOn,
+        )
+        GroupDivider()
+        SleepRow(sleep = settings.sleep, onClick = { actions.onSleep(settings.sleep.next()) })
+    }
+}
+
+@Composable
+private fun VoiceRow(
+    settings: ReadAloudSettings,
+    voices: List<TtsVoice>,
+    onClick: () -> Unit,
+) {
+    val colors = MaterialTheme.appColors
+    val voice = settings.selectedVoice(voices)
+    val display = voiceDisplayName(voice, Locale.forLanguageTag(settings.preferredLanguage()))
+    val value = if (voice != null) {
+        stringResource(R.string.settings_read_aloud_voice_value, display, voice.name)
+    } else {
+        stringResource(R.string.settings_read_aloud_voice_default, display)
+    }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 64.dp)
+            .appClickable(shape = RectangleShape, onClick = onClick)
+            .padding(horizontal = RowPadding, vertical = 14.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        IconTile(icon = R.drawable.ic_ph_user_sound, container = colors.accTint16, content = colors.accTx)
+        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(
+                text = stringResource(R.string.read_aloud_voice),
+                style = MaterialTheme.typography.titleSmall.copy(fontSize = 15.sp),
+                color = colors.ink,
+            )
+            Text(
+                text = value,
+                style = MaterialTheme.typography.bodySmall.copy(textDirection = TextDirection.Content),
+                color = colors.ink3,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        if (voice?.installed == false) NotInstalledChip()
+        Caret()
+    }
+}
+
+@Composable
+private fun RateGroup(
+    title: String,
+    options: List<Float>,
+    value: Float,
+    onSelect: (Float) -> Unit,
+) {
+    val colors = MaterialTheme.appColors
+    val label = readAloudSpeedLabel(value)
+    Column(
+        modifier = Modifier.padding(horizontal = RowPadding, vertical = 14.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .semantics(mergeDescendants = true) {},
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleSmall,
+                color = colors.ink,
+                modifier = Modifier.weight(1f),
+            )
+            Text(
+                text = label,
+                style = MaterialTheme.typography.bodySmall.copy(textDirection = TextDirection.Ltr),
+                color = colors.ink3,
+            )
+        }
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .selectableGroup(),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            options.forEach { option ->
+                val text = readAloudSpeedLabel(option)
+                SelectableSurface(
+                    selected = option == value,
+                    onClick = { onSelect(option) },
+                    modifier = Modifier
+                        .weight(1f)
+                        .semantics { contentDescription = "$title $text" },
+                    minHeight = ChoiceHeight,
+                    contentPadding = PaddingValues(horizontal = 4.dp),
+                ) {
+                    Text(
+                        text = text,
+                        style = MaterialTheme.typography.labelMedium.copy(textDirection = TextDirection.Ltr),
+                        maxLines = 1,
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SleepRow(sleep: SleepTimer, onClick: () -> Unit) {
+    val colors = MaterialTheme.appColors
+    val on = sleep != SleepTimer.Off
+    val label = sleepLabel(sleep)
+    val shape = MaterialTheme.appShapes.iconTile
+    val title = stringResource(R.string.settings_read_aloud_sleep)
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 64.dp)
+            .appClickable(
+                shape = RectangleShape,
+                onClickLabel = stringResource(R.string.settings_read_aloud_sleep_change),
+                onClick = onClick,
+            )
+            .semantics(mergeDescendants = true) {
+                contentDescription = title
+                stateDescription = label
+            }
+            .padding(horizontal = RowPadding, vertical = 14.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        IconTile(icon = R.drawable.ic_ph_moon_stars, container = colors.surf2, content = colors.accLt)
+        RowText(
+            title = title,
+            body = stringResource(R.string.settings_read_aloud_sleep_hint),
+            modifier = Modifier.weight(1f),
+        )
+        Box(
+            modifier = Modifier
+                .defaultMinSize(minHeight = 34.dp)
+                .background(if (on) colors.accTint12 else colors.surf2, shape)
+                .border(1.dp, if (on) colors.accLine else colors.line2, shape)
+                .padding(horizontal = 12.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelMedium,
+                color = if (on) colors.accTx else colors.ink3,
+                maxLines = 1,
+            )
+        }
+    }
+}
+
+@Composable
+private fun sleepLabel(sleep: SleepTimer): String {
+    val minutes = sleep.minutes
+    return when {
+        sleep == SleepTimer.Off -> stringResource(R.string.settings_read_aloud_sleep_off)
+        sleep == SleepTimer.EndOfChapter -> stringResource(R.string.settings_read_aloud_sleep_chapter)
+        minutes != null -> pluralStringResource(R.plurals.settings_read_aloud_sleep_minutes, minutes, formatNumber(minutes))
+        else -> ""
+    }
+}
+
+private fun ReadAloudSettings.preferredLanguage(): String = language ?: Locale.getDefault().language
+
+private fun ReadAloudSettings.selectedVoice(voices: List<TtsVoice>): TtsVoice? {
+    val name = this.voices[preferredLanguage()] ?: return null
+    return voices.firstOrNull { it.name == name }
 }
 
 @Composable
@@ -849,6 +1166,12 @@ private val PreviewState = SettingsUiState(
     settings = AppSettings(
         goal = DailyGoal(GoalUnit.Minutes, 15),
         reminders = ReminderSettings(dailyEnabled = true, streakEnabled = true, time = LocalTime.of(19, 0)),
+        readAloud = ReadAloudSettings(
+            speed = 1.25f,
+            voices = mapOf("en" to "en-us-x-iob-local"),
+            language = "en",
+            sleep = SleepTimer.Minutes30,
+        ),
     ),
     goalContext = GoalContext(metLastWeek = 5, avgSessionMs = 22 * MINUTE_MS, pagesPerDay = 15),
     reviewBookIds = listOf(3L),
@@ -856,17 +1179,28 @@ private val PreviewState = SettingsUiState(
 
 private val PreviewActions = SettingsActions({}, {}, {}, {}, { _, _ -> }, {}, {})
 
+private val PreviewVoices = listOf(
+    TtsVoice(name = "en-us-x-iob-local", locale = Locale.US, installed = true),
+    TtsVoice(name = "ar-xa-x-arz-local", locale = Locale.forLanguageTag("ar-SA"), installed = false),
+)
+
 private val PreviewUpdate = UpdateSummary(available = true, versionName = "1.1", versionCode = 118, sizeBytes = 24_600_000L)
 
-@Preview(name = "Dark", showBackground = true, heightDp = 1400)
+@Preview(name = "Dark", showBackground = true, heightDp = 2200)
 @Composable
 private fun SettingsDarkPreview() {
     Reader343Theme(darkTheme = true) {
-        SettingsScreen(state = PreviewState, actions = PreviewActions, notificationsBlocked = true, update = PreviewUpdate)
+        SettingsScreen(
+            state = PreviewState,
+            actions = PreviewActions,
+            notificationsBlocked = true,
+            update = PreviewUpdate,
+            voices = PreviewVoices,
+        )
     }
 }
 
-@Preview(name = "Light", showBackground = true, heightDp = 1400)
+@Preview(name = "Light", showBackground = true, heightDp = 2200)
 @Composable
 private fun SettingsLightPreview() {
     Reader343Theme(darkTheme = false) {
@@ -878,10 +1212,10 @@ private fun SettingsLightPreview() {
     }
 }
 
-@Preview(name = "RTL", showBackground = true, heightDp = 1400, locale = "ar")
+@Preview(name = "RTL", showBackground = true, heightDp = 2200, locale = "ar")
 @Composable
 private fun SettingsRtlPreview() {
     Reader343Theme(darkTheme = true) {
-        SettingsScreen(state = PreviewState, actions = PreviewActions)
+        SettingsScreen(state = PreviewState, actions = PreviewActions, voices = PreviewVoices)
     }
 }

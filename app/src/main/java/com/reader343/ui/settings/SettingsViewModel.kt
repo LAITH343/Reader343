@@ -10,7 +10,11 @@ import com.reader343.domain.AppLanguage
 import com.reader343.domain.AppSettings
 import com.reader343.domain.GoalContext
 import com.reader343.domain.PageAppearance
+import com.reader343.domain.SleepTimer
 import com.reader343.domain.ThemeMode
+import com.reader343.domain.TtsVoice
+import com.reader343.tts.ReadAloudPlayer
+import com.reader343.ui.readaloud.MissingVoice
 import com.reader343.update.UpdateSummary
 import com.reader343.update.summary
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -35,7 +39,12 @@ class SettingsViewModel @Inject constructor(
     statsRepository: StatsRepository,
     metadataRepository: MetadataRepository,
     updateRepository: UpdateRepository,
+    private val player: ReadAloudPlayer,
 ) : ViewModel() {
+
+    private var awaiting: MissingVoice? = null
+
+    val voices: StateFlow<List<TtsVoice>> = player.voices
 
     val uiState: StateFlow<SettingsUiState?> = combine(
         repository.settings,
@@ -64,6 +73,44 @@ class SettingsViewModel @Inject constructor(
     fun setReminderTime(value: LocalTime) = update { repository.setReminderTime(value) }
 
     fun setAutoFetchMetadata(value: Boolean) = update { repository.setAutoFetchMetadata(value) }
+
+    fun refreshVoices() = player.refreshVoices()
+
+    fun selectVoice(voice: TtsVoice) = player.setVoice(voice)
+
+    fun awaitVoice(missing: MissingVoice) {
+        awaiting = missing
+    }
+
+    fun setReadAloudSpeed(value: Float) = update { repository.setReadAloudSpeed(value) }
+
+    fun setReadAloudPitch(value: Float) = update { repository.setReadAloudPitch(value) }
+
+    fun setReadAloudHighlight(value: Boolean) = update { repository.setReadAloudHighlight(value) }
+
+    fun setReadAloudAutoPage(value: Boolean) = update { repository.setReadAloudAutoPage(value) }
+
+    fun setReadAloudSkipFurniture(value: Boolean) = update { repository.setReadAloudSkipFurniture(value) }
+
+    fun setReadAloudResumeAfterCall(value: Boolean) = update { repository.setReadAloudResumeAfterCall(value) }
+
+    fun setReadAloudKeepScreenOn(value: Boolean) = update { repository.setReadAloudKeepScreenOn(value) }
+
+    fun setReadAloudSleep(value: SleepTimer) = update { repository.setReadAloudSleep(value) }
+
+    init {
+        viewModelScope.launch {
+            player.voices.collect { voices ->
+                val pending = awaiting ?: return@collect
+                val installed = voices.filter { it.installed }
+                val match = installed.firstOrNull { it.name == pending.voiceName }
+                    ?: installed.firstOrNull { it.locale.language == pending.locale.language }
+                    ?: return@collect
+                awaiting = null
+                player.setVoice(match)
+            }
+        }
+    }
 
     private fun update(block: suspend () -> Unit) {
         viewModelScope.launch { block() }

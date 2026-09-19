@@ -39,12 +39,15 @@ import com.reader343.domain.chapterAt
 import com.reader343.domain.detectTextLayer
 import com.reader343.domain.PageAppearance
 import com.reader343.domain.ReadAloudAvailability
+import com.reader343.domain.ReadAloudSettings
 import com.reader343.domain.SpeechUnit
+import com.reader343.domain.TtsIssue
 import com.reader343.domain.TtsState
 import com.reader343.domain.TtsStatus
 import com.reader343.domain.TtsVoice
 import com.reader343.domain.estimateReadAloudProgress
 import com.reader343.domain.readAloudAvailability
+import com.reader343.domain.voicePreferences
 import com.reader343.domain.unitAtChar
 import com.reader343.pdf.PageBitmapCache
 import com.reader343.pdf.PageSize
@@ -79,6 +82,7 @@ import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.util.Locale
 import javax.inject.Inject
 import kotlin.math.hypot
 import kotlin.math.roundToInt
@@ -118,6 +122,7 @@ private class ReadAloudInputs(
     val voices: List<TtsVoice>,
     val availability: ReadAloudAvailability,
     val voicesVisible: Boolean,
+    val settings: ReadAloudSettings,
 )
 
 @OptIn(FlowPreview::class, ExperimentalCoroutinesApi::class)
@@ -164,13 +169,14 @@ class ReaderViewModel @Inject constructor(
     private var coverPath: String? = null
     private var spokenPage = -1
     private var spokenUnits: List<SpeechUnit> = emptyList()
+    private var spokenSkip = true
 
     private val availability = combine(textLayerFlag, currentPage, usablePages) { flag, page, usable ->
         readAloudAvailability(flag, usable[page])
     }
 
     val readAloud: StateFlow<ReadAloudUi> =
-        combine(player.state, player.voices, availability, voicesVisible, ::ReadAloudInputs)
+        combine(player.state, player.voices, availability, voicesVisible, player.settings, ::ReadAloudInputs)
             .mapLatest(::readAloudUi)
             .stateIn(viewModelScope, SharingStarted.Eagerly, ReadAloudUi())
 
@@ -317,7 +323,7 @@ class ReaderViewModel @Inject constructor(
     fun onPageSettled(page: Int) {
         if (page != currentPage.value) {
             currentPage.value = page
-            if (sessionOpen) sessionPages++
+            if (sessionOpen && !followingSpeech(page)) sessionPages++
             stopZoomAnimation()
             _zoom.value = ZoomState()
             _detail.value = null
@@ -337,6 +343,7 @@ class ReaderViewModel @Inject constructor(
     fun onForeground() {
         foreground = true
         openSession()
+        if (speakingHere()) player.refreshVoices()
     }
 
     fun onBackground() {
@@ -483,14 +490,32 @@ class ReaderViewModel @Inject constructor(
 
     override fun onHideVoices() {
         voicesVisible.value = false
+        if (readAloud.value.missingLanguage != null) player.dismissIssue()
         scheduleChromeHide()
     }
 
     override fun onSelectVoice(voice: TtsVoice) = player.setVoice(voice)
 
+    override fun onAwaitVoice() {
+        voicesVisible.value = false
+        player.awaitVoice()
+        scheduleChromeHide()
+    }
+
+    override fun onReadInstead() {
+        voicesVisible.value = false
+        player.readInstead()
+        scheduleChromeHide()
+    }
+
     private fun speakingHere(): Boolean {
         val tts = player.state.value
         return tts.bookId == bookId && tts.status != TtsStatus.Idle
+    }
+
+    private fun followingSpeech(page: Int): Boolean {
+        val tts = player.state.value
+        return tts.bookId == bookId && tts.status == TtsStatus.Playing && tts.position?.page == page
     }
 
     private fun speakFrom(page: Int, point: Offset, layout: PageLayout) {
@@ -504,6 +529,11 @@ class ReaderViewModel @Inject constructor(
     }
 
     private suspend fun unitsFor(page: Int): List<SpeechUnit> {
+        val skip = player.settings.value.skipFurniture
+        if (skip != spokenSkip) {
+            spokenSkip = skip
+            spokenPage = -1
+        }
         if (page != spokenPage || spokenUnits.isEmpty()) {
             spokenUnits = player.pageUnits(page)
             spokenPage = page
@@ -514,6 +544,9 @@ class ReaderViewModel @Inject constructor(
     private suspend fun readAloudUi(inputs: ReadAloudInputs): ReadAloudUi {
         val tts = inputs.tts
         val own = tts.bookId == bookId && tts.status != TtsStatus.Idle
+        val missing = tts.missingLanguage.takeIf {
+            own && (tts.issue == TtsIssue.MissingVoiceData || tts.issue == TtsIssue.LanguageUnsupported)
+        }
         val base = ReadAloudUi(
             availability = inputs.availability,
             status = if (own) tts.status else TtsStatus.Idle,
@@ -524,6 +557,10 @@ class ReaderViewModel @Inject constructor(
             locale = tts.locale,
             voices = inputs.voices,
             voicesVisible = own && inputs.voicesVisible,
+            highlight = inputs.settings.highlight,
+            keepScreenOn = own && inputs.settings.keepScreenOn,
+            missingLanguage = missing?.let(Locale::forLanguageTag),
+            fallbackLanguage = missing?.let { Locale.forLanguageTag(inputs.settings.voicePreferences.fallback(it)) },
         )
         val position = tts.position
         if (!own || position == null) return base

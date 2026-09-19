@@ -49,4 +49,5 @@ data class AppSettings(
     val goalHistory: List<GoalChange> = emptyList(),
     val reminders: ReminderSettings = ReminderSettings(),
     val autoFetchMetadata: Boolean = true,
+    val readAloud: ReadAloudSettings = ReadAloudSettings(),
 )

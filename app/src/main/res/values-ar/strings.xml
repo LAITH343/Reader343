@@ -573,4 +573,35 @@
     <string name="read_aloud_voices_subtitle">الأصوات مأخوذة من محرّك النطق في أندرويد.</string>
     <string name="read_aloud_voices_done">تم</string>
     <string name="read_aloud_voice_not_installed">غير مثبّت</string>
+    <string name="read_aloud_missing_title">صوت %1$s غير مثبّت</string>
+    <string name="read_aloud_missing_body">تعتمد القراءة الصوتية على الأصوات المثبّتة على جهازك. ثبّت صوتاً لـ%1$s وسيُختار تلقائياً عند عودتك.</string>
+    <string name="read_aloud_open_voice_settings">فتح إعدادات الصوت</string>
+    <string name="read_aloud_read_instead">القراءة بـ%1$s بدلاً من ذلك</string>
+    <string name="settings_read_aloud">القراءة الصوتية</string>
+    <string name="settings_read_aloud_voice_value">%1$s · %2$s</string>
+    <string name="settings_read_aloud_voice_default">افتراضي الجهاز · %1$s</string>
+    <string name="settings_read_aloud_pitch">طبقة الصوت</string>
+    <string name="settings_read_aloud_highlight">تمييز الجملة أثناء نطقها</string>
+    <string name="settings_read_aloud_highlight_hint">تمييز مؤقّت بخط سفلي — تبقى تظليلاتك المحفوظة بألوانها.</string>
+    <string name="settings_read_aloud_auto_page">متابعة القراءة بعد نهاية الصفحة</string>
+    <string name="settings_read_aloud_auto_page_hint">يُقلب الصفحة تلقائياً ويواصل النطق.</string>
+    <string name="settings_read_aloud_skip">تخطّي أرقام الصفحات والحواشي</string>
+    <string name="settings_read_aloud_skip_hint">لا تُنطق الترويسات والتذييلات وعلامات المراجع.</string>
+    <string name="settings_read_aloud_resume">المتابعة بعد انتهاء المكالمة</string>
+    <string name="settings_read_aloud_resume_hint">يواصل النطق عند انتهاء مكالمة أو صوت آخر.</string>
+    <string name="settings_read_aloud_screen">إبقاء الشاشة مضاءة</string>
+    <string name="settings_read_aloud_screen_hint">تبقى الشاشة مضاءة أثناء القراءة الصوتية في القارئ.</string>
+    <string name="settings_read_aloud_sleep">مؤقّت النوم</string>
+    <string name="settings_read_aloud_sleep_hint">يتوقّف النطق تلقائياً بعد المدة المحددة.</string>
+    <string name="settings_read_aloud_sleep_change">تغيير مؤقّت النوم</string>
+    <string name="settings_read_aloud_sleep_off">إيقاف</string>
+    <string name="settings_read_aloud_sleep_chapter">نهاية الفصل</string>
+    <plurals name="settings_read_aloud_sleep_minutes">
+        <item quantity="zero">%1$s دقيقة</item>
+        <item quantity="one">دقيقة واحدة</item>
+        <item quantity="two">دقيقتان</item>
+        <item quantity="few">%1$s دقائق</item>
+        <item quantity="many">%1$s دقيقة</item>
+        <item quantity="other">%1$s دقيقة</item>
+    </plurals>
 </resources>
