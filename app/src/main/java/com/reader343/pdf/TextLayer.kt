@@ -1,7 +1,9 @@
 package com.reader343.pdf
 
 import com.reader343.domain.NormRect
+import com.reader343.domain.SpeechUnit
 import com.reader343.domain.isUsableText
+import java.util.Locale
 import kotlin.math.sqrt
 
 data class TextChar(val char: Char, val box: NormRect?)
@@ -43,10 +45,13 @@ class PageText(val page: Int, val chars: List<TextChar>) {
         return start..end
     }
 
-    fun rectsFor(start: Int, end: Int): List<NormRect> {
+    fun rectsFor(start: Int, end: Int): List<NormRect> =
+        rectsFor(start.coerceAtLeast(0)..end.coerceAtMost(chars.lastIndex))
+
+    fun rectsFor(indices: Iterable<Int>): List<NormRect> {
         val result = mutableListOf<NormRect>()
         var line: NormRect? = null
-        for (i in start.coerceAtLeast(0)..end.coerceAtMost(chars.lastIndex)) {
+        for (i in indices) {
             val box = chars[i].box ?: continue
             val current = line
             line = if (current != null && sameLine(current, box)) {
@@ -118,6 +123,11 @@ class TextLayer(
 
     suspend fun get(page: Int): PageText =
         cache[page] ?: engine.loadText(page).also { cache[page] = it }
+
+    suspend fun speechUnits(page: Int, pageCount: Int, locale: Locale = Locale.getDefault()): List<SpeechUnit> {
+        val neighbors = listOf(page - 1, page + 1).filter { it in 0 until pageCount }.map { get(it) }
+        return TextSegmenter.segment(get(page), locale, neighbors)
+    }
 
     fun clear() = cache.clear()
 
