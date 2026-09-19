@@ -95,7 +95,6 @@ fun AppNav(continueRequests: Flow<Long?> = emptyFlow()) {
                         onOpenBook = { navController.navigateFrom(entry, Routes.reader(it)) },
                         onOpenNotes = { navController.navigateFrom(entry, Routes.notes(it)) },
                         onOpenLibrary = { navController.tabFrom(entry, TopLevelTab.Library) },
-                        onOpenSettings = { navController.tabFrom(entry, TopLevelTab.Settings) },
                         onOpenUpdate = { navController.navigateFrom(entry, Routes.UPDATE) },
                     )
                 }

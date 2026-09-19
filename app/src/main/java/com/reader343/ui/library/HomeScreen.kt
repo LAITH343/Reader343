@@ -94,7 +94,6 @@ fun HomeRoute(
     onOpenBook: (Long) -> Unit,
     onOpenNotes: (Long) -> Unit,
     onOpenLibrary: () -> Unit,
-    onOpenSettings: () -> Unit,
     onOpenUpdate: () -> Unit,
     viewModel: LibraryViewModel = hiltViewModel(),
 ) {
@@ -125,7 +124,6 @@ fun HomeRoute(
         onOpenBook = onOpenBook,
         onOpenMenu = { menuBookId = it },
         onOpenLibrary = onOpenLibrary,
-        onOpenSettings = onOpenSettings,
         onSetGoal = { goalSheet = true },
         onRetry = viewModel::retry,
         updateVersion = updateVersion,
@@ -151,7 +149,6 @@ fun HomeScreen(
     onOpenBook: (Long) -> Unit,
     onOpenMenu: (Long) -> Unit,
     onOpenLibrary: () -> Unit,
-    onOpenSettings: () -> Unit,
     onSetGoal: () -> Unit,
     onRetry: () -> Unit,
     modifier: Modifier = Modifier,
@@ -182,8 +179,7 @@ fun HomeScreen(
                     HomeHeader(
                         updateVersion = updateVersion,
                         onOpenUpdate = onOpenUpdate,
-                        onOpenSettings = onOpenSettings,
-                    )
+                                    )
                 }
                 if (state is LibraryUiState.Content) {
                     homeContent(state, onOpenBook, onOpenMenu, onOpenLibrary, onSetGoal)
@@ -254,7 +250,6 @@ private fun LazyListScope.homeContent(
 private fun HomeHeader(
     updateVersion: String?,
     onOpenUpdate: () -> Unit,
-    onOpenSettings: () -> Unit,
 ) {
     val colors = MaterialTheme.appColors
     Row(
@@ -273,20 +268,13 @@ private fun HomeHeader(
             Text(text = greeting(), style = MaterialTheme.typography.bodySmall, color = colors.ink3)
             Text(text = stringResource(R.string.home_title), style = MaterialTheme.appType.screenTitle, color = colors.ink)
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            if (updateVersion != null) {
-                IconBadgeButton(
-                    icon = R.drawable.ic_ph_download_simple,
-                    contentDescription = stringResource(R.string.home_update_available_version, updateVersion),
-                    onClick = onOpenUpdate,
-                    tone = IconButtonTone.Accent,
-                    badge = true,
-                )
-            }
+        if (updateVersion != null) {
             IconBadgeButton(
-                icon = R.drawable.ic_ph_gear_six,
-                contentDescription = stringResource(R.string.action_settings),
-                onClick = onOpenSettings,
+                icon = R.drawable.ic_ph_download_simple,
+                contentDescription = stringResource(R.string.home_update_available_version, updateVersion),
+                onClick = onOpenUpdate,
+                tone = IconButtonTone.Accent,
+                badge = true,
             )
         }
     }
@@ -600,7 +588,6 @@ private fun HomePreview() {
             onOpenBook = {},
             onOpenMenu = {},
             onOpenLibrary = {},
-            onOpenSettings = {},
             onSetGoal = {},
             onRetry = {},
             updateVersion = "1.1",
@@ -625,7 +612,6 @@ private fun HomeNoGoalRtlPreview() {
             onOpenBook = {},
             onOpenMenu = {},
             onOpenLibrary = {},
-            onOpenSettings = {},
             onSetGoal = {},
             onRetry = {},
         )
@@ -644,7 +630,6 @@ private fun HomeEmptyPreview() {
             onOpenBook = {},
             onOpenMenu = {},
             onOpenLibrary = {},
-            onOpenSettings = {},
             onSetGoal = {},
             onRetry = {},
         )
