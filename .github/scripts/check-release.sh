@@ -12,7 +12,7 @@ REPO="${2:-${GH_REPO:-$(gh repo view --json nameWithOwner --jq .nameWithOwner | 
 
 TAG_PATTERN='^v[0-9]+\.[0-9]+(\.[0-9]+)?$'
 ASSET_PATTERN='^reader343-([0-9]+\.[0-9]+(\.[0-9]+)?)-([0-9]+)\.apk$'
-BULLET_PATTERN='^- (New|Improved|Fixed): .+ — .+$'
+BULLET_PATTERN='^[-*+] (New|Improved|Fixed): .+ — .+$'
 HEADING="## What's new"
 
 errors=()
