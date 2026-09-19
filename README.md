@@ -1,66 +1,65 @@
 # Reader343
 
-An offline PDF reader for Android with reading stats, daily goals, highlights and notes. There is no account and no cloud sync. The only network call is the update check against this repository's GitHub Releases.
+Reader343 is a modern, offline-first PDF reader for Android.
 
-## Building
+I created it because I could not find a modern open-source reader where I could simply add my own books. Reader343 is a calm, personal place for your PDF library: bring your books, read without an account, and make the experience your own.
 
-```sh
-./gradlew assembleDebug
-./gradlew lint testDebugUnitTest
+## Contents
+
+- [Why Reader343?](#why-reader343)
+- [Reading your books](#reading-your-books)
+- [Make the library yours](#make-the-library-yours)
+- [Privacy, language, and updates](#privacy-language-and-updates)
+- [Build it yourself](#build-it-yourself)
+- [Release build](#release-build)
+
+## Why Reader343?
+
+Your library should feel like yours. Import PDFs directly, pick up where you stopped, and make notes as you read — without needing to create an account or upload your books somewhere else.
+
+## Reading your books
+
+- Add and read your own PDF files.
+- Automatically save your place and show chapter progress.
+- Use a book's table of contents, page navigation, and bookmarks to move around quickly.
+- Highlight text in several colours and attach notes to passages.
+- Review all notes and highlights for a book, filter them, and jump back to the original page.
+- Listen to text with **Read aloud**. Choose a device voice, control speed and pitch, highlight the spoken sentence, continue to the next page automatically, and use a sleep timer.
+
+## Make the library yours
+
+- Fetch book details and cover art with optional metadata lookup; select the right result or edit the title yourself.
+- Set a daily reading goal by time or pages, build a streak, and see reading insights and activity history.
+- Get optional daily and streak reminders.
+- Choose light or dark mode and adjust the page appearance for comfortable reading.
+- Filter and organise the books in your library.
+
+## Privacy, language, and updates
+
+There are no accounts and no cloud sync. Your PDFs, progress, bookmarks, notes, highlights, and settings remain on your device.
+
+Reader343 supports **English and Arabic**, including right-to-left Arabic layouts. Internet access is used only when you choose metadata lookup and when the app checks GitHub Releases for updates. When an update is available, Reader343 can download it, verify that it was signed by the same publisher, and hand installation to Android. Nothing from your library is uploaded.
+
+## Build it yourself
+
+Open the project in Android Studio, allow Gradle to finish syncing, choose a device or emulator, then press **Run**. This creates and installs a development build.
+
+Or build a debug APK from the project folder:
+
+```powershell
+.\gradlew.bat assembleDebug
 ```
 
-## Releasing
+The APK will be at `app/build/outputs/apk/debug/app-debug.apk`.
 
-The app updates itself from the latest stable release of this repository (`/releases/latest`, so drafts and prereleases are never offered). It reads everything it needs from the tag, the APK asset name and the release notes. There is no extra metadata file.
+## Release build
 
-### Contract
+To make a release APK locally, add your signing details to an untracked `keystore.properties` file in the project root, then run:
 
-1. **Version.** Bump `versionCode` and `versionName` in `app/build.gradle.kts`. The `versionCode` must be higher than the previous stable release's.
-2. **Tag.** `v{versionName}`, for example `v1.1` or `v1.1.2`.
-3. **Asset.** Exactly one APK, named `reader343-{versionName}-{versionCode}.apk`, for example `reader343-1.1-118.apk`. The app takes the version name and code from this file name only. The APK must be signed with the same key as the installed app, or the app will refuse to install it.
-4. **Release notes.** A `## What's new` heading followed by one bullet per change:
-
-   ```markdown
-   ## What's new
-   - New: Weekly goals — Set a weekly target alongside the daily one.
-   - Improved: Faster page rendering — Large PDFs open about 40% quicker.
-   - Fixed: Streak rollover at midnight — Sessions crossing midnight no longer count twice.
-   ```
-
-   Each bullet is `- {New|Improved|Fixed}: {title} — {body}`, with an em dash between title and body. The app shows each one as a card tagged New, Improved or Fixed. Anything outside that section is ignored by the app, so you can add other notes below it under their own heading.
-
-### Building a release
-
-The `Release build` workflow (`.github/workflows/release-build.yml`) runs when a `v*` tag is pushed, and can be started by hand with an existing tag:
-
-```sh
-git tag v1.1
-git push origin v1.1
+```powershell
+.\gradlew.bat assembleRelease
 ```
 
-It checks that the tag matches `versionName`, runs the unit tests, builds a signed release APK, verifies its signature, and names it `reader343-{versionName}-{versionCode}.apk`. It then creates a draft release for the tag, or updates the existing draft by replacing its APK and keeping its notes, and runs the release check against the draft. It never touches a published release.
+The signed APK is created at `app/build/outputs/apk/release/app-release.apk`. Keep your keystore and its passwords private, and use the same signing key for every published update.
 
-A new draft starts with placeholder notes, so the first check fails until you edit the `## What's new` section on GitHub. Re-run `Release check` by hand with the tag, then publish the draft.
-
-Signing uses these repository secrets:
-
-| Secret | Value |
-|---|---|
-| `RELEASE_KEYSTORE_BASE64` | The keystore file, base64 encoded |
-| `RELEASE_STORE_PASSWORD` | `storePassword` from `keystore.properties` |
-| `RELEASE_KEY_ALIAS` | `keyAlias` from `keystore.properties` |
-| `RELEASE_KEY_PASSWORD` | `keyPassword` from `keystore.properties` |
-
-Locally, the release build is signed only when `keystore.properties` exists in the project root. Keep it and the keystore out of git.
-
-### Checking a release
-
-The `Release check` workflow (`.github/workflows/release-check.yml`) runs when a release is published or edited, and can be started by hand with a tag. It fails with one error line per problem and writes a job summary. It never changes or deletes the release.
-
-The same checks run locally with the GitHub CLI and `jq`:
-
-```sh
-.github/scripts/check-release.sh v1.1
-```
-
-It verifies the tag format, that there is exactly one correctly named APK, that its version name matches the tag, that its version code is higher than the previous stable release's, and that every bullet under `## What's new` follows the format above. To check notes before publishing, create the release as a draft first and run the script against its tag.
+For the project release process, update the version in `app/build.gradle.kts`, create a matching Git tag such as `v1.2`, and push it. GitHub Actions builds the signed APK and prepares a draft GitHub release.
