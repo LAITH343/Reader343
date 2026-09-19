@@ -26,6 +26,7 @@ data class BookEntity(
     val metadataFetchedAt: Long? = null,
     val metadataStatus: String? = null,
     @ColumnInfo(defaultValue = "0") val userEdited: Boolean = false,
+    val hasTextLayer: Boolean? = null,
 )
 
 @Entity(

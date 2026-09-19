@@ -5,6 +5,7 @@ import android.graphics.Color
 import android.os.ParcelFileDescriptor
 import com.reader343.di.PdfDispatcher
 import com.reader343.domain.OutlineEntry
+import com.reader343.domain.detectTextLayer
 import com.reader343.domain.findIsbn
 import io.legere.pdfiumandroid.PdfDocument
 import io.legere.pdfiumandroid.PdfPage
@@ -15,7 +16,12 @@ import java.io.File
 import javax.inject.Inject
 import javax.inject.Singleton
 
-data class ImportedPdf(val pageCount: Int, val outline: List<OutlineEntry>, val isbn: String? = null)
+data class ImportedPdf(
+    val pageCount: Int,
+    val outline: List<OutlineEntry>,
+    val isbn: String? = null,
+    val hasTextLayer: Boolean? = null,
+)
 
 @Singleton
 class PdfImportReader @Inject constructor(
@@ -37,7 +43,8 @@ class PdfImportReader @Inject constructor(
                 if (pageCount > 0) document.openPage(0)?.let { renderCover(it, cover, coverWidth) }
                 val outline = runCatching { document.getTableOfContents().flatten(pageCount) }.getOrDefault(emptyList())
                 val isbn = runCatching { findIsbnIn(document, pageCount) }.getOrNull()
-                ImportedPdf(pageCount, outline, isbn)
+                val hasTextLayer = runCatching { detectTextLayer(pageCount) { pageText(document, it) } }.getOrNull()
+                ImportedPdf(pageCount, outline, isbn, hasTextLayer)
             } finally {
                 document.close()
             }
@@ -45,16 +52,14 @@ class PdfImportReader @Inject constructor(
 
     private fun findIsbnIn(document: PdfDocument, pageCount: Int): String? {
         for (index in 0 until minOf(pageCount, ISBN_PAGES)) {
-            val text = document.openPage(index)?.use { page ->
-                page.openTextPage().use { textPage ->
-                    val count = textPage.textPageCountChars()
-                    if (count > 0) textPage.textPageGetText(0, count).orEmpty() else ""
-                }
-            } ?: continue
+            val text = pageText(document, index) ?: continue
             findIsbn(text)?.let { return it }
         }
         return null
     }
+
+    private fun pageText(document: PdfDocument, index: Int): String? =
+        document.openPage(index)?.use { page -> page.extractText() }
 
     private fun renderCover(page: PdfPage, cover: File, width: Int) {
         try {

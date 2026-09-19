@@ -27,7 +27,7 @@ import com.reader343.data.db.entity.SessionEntity
         BookmarkEntity::class,
         OutlineEntryEntity::class,
     ],
-    version = 2,
+    version = 3,
     exportSchema = true,
 )
 abstract class ReaderDatabase : RoomDatabase() {

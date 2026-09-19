@@ -62,6 +62,25 @@ class MigrationTest {
         }
     }
 
+    @Test
+    fun migrate2To3AddsUnknownTextLayer() {
+        helper.createDatabase(DB_NAME, 2).use { db ->
+            db.execSQL(
+                "INSERT INTO books (id, title, sourceUri, filePath, pageCount, coverPath, addedAt, author) " +
+                    "VALUES (1, 'Crafting Interpreters', 'content://x', '/books/a.pdf', 640, NULL, 100, 'Nystrom')",
+            )
+        }
+
+        helper.runMigrationsAndValidate(DB_NAME, 3, true, *ALL_MIGRATIONS).use { db ->
+            db.query("SELECT title, author, hasTextLayer FROM books").use { c ->
+                assertTrue(c.moveToFirst())
+                assertEquals("Crafting Interpreters", c.getString(0))
+                assertEquals("Nystrom", c.getString(1))
+                assertTrue(c.isNull(2))
+            }
+        }
+    }
+
     private companion object {
         const val DB_NAME = "migration-test"
     }

@@ -1,6 +1,7 @@
 package com.reader343.pdf
 
 import com.reader343.domain.NormRect
+import com.reader343.domain.isUsableText
 import kotlin.math.sqrt
 
 data class TextChar(val char: Char, val box: NormRect?)
@@ -8,6 +9,10 @@ data class TextChar(val char: Char, val box: NormRect?)
 class PageText(val page: Int, val chars: List<TextChar>) {
 
     val hasText: Boolean = chars.any { it.box != null && !it.char.isWhitespace() }
+
+    val text: String by lazy { chars.joinToString("") { it.char.toString() } }
+
+    val isUsable: Boolean by lazy { isUsableText(text) }
 
     fun charNear(x: Float, y: Float, aspect: Float, maxDistance: Float): Int? {
         val index = nearestChar(x, y, aspect) ?: return null

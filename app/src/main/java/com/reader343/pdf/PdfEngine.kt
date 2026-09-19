@@ -8,12 +8,19 @@ import com.reader343.di.PdfDispatcher
 import com.reader343.domain.NormRect
 import com.reader343.domain.OutlineEntry
 import io.legere.pdfiumandroid.PdfDocument
+import io.legere.pdfiumandroid.PdfPage
 import io.legere.pdfiumandroid.PdfiumCore
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.withContext
 import java.io.File
 import javax.inject.Inject
 import kotlin.math.roundToInt
+
+fun PdfPage.extractText(): String =
+    openTextPage().use { text ->
+        val count = text.textPageCountChars()
+        if (count > 0) text.textPageGetText(0, count).orEmpty() else ""
+    }
 
 data class PageSize(val widthPt: Float, val heightPt: Float) {
     val aspectRatio: Float get() = widthPt / heightPt
@@ -106,6 +113,11 @@ class PdfEngine @Inject constructor(
                 PageText(index, chars)
             }
         }
+    }
+
+    suspend fun extractText(index: Int): String? = withContext(dispatcher) {
+        val doc = checkNotNull(document) { "Document not open" }
+        doc.openPage(index)?.use { page -> page.extractText() }
     }
 
     suspend fun close() = withContext(dispatcher) {

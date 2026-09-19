@@ -80,6 +80,7 @@ class LibraryRepository @Inject constructor(
                         coverPath = coverFile.takeIf { it.exists() }?.absolutePath,
                         addedAt = now,
                         isbn = imported.isbn,
+                        hasTextLayer = imported.hasTextLayer,
                     ),
                 )
                 progressDao.upsert(

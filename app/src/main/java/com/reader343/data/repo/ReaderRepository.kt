@@ -22,7 +22,12 @@ class ReaderRepository @Inject constructor(
             filePath = book.filePath,
             pageCount = book.pageCount,
             lastPage = progress?.lastPage ?: 0,
+            hasTextLayer = book.hasTextLayer,
         )
+    }
+
+    suspend fun setHasTextLayer(bookId: Long, hasTextLayer: Boolean) {
+        bookDao.setHasTextLayer(bookId, hasTextLayer)
     }
 
     suspend fun saveProgress(bookId: Long, page: Int, pageCount: Int) {

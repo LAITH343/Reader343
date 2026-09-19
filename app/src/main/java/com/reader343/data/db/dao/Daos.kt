@@ -62,6 +62,9 @@ interface BookDao {
     @Query("UPDATE books SET metadataStatus = :status WHERE id = :id")
     suspend fun setMetadataStatus(id: Long, status: String?)
 
+    @Query("UPDATE books SET hasTextLayer = :hasTextLayer WHERE id = :id")
+    suspend fun setHasTextLayer(id: Long, hasTextLayer: Boolean)
+
     @Query("SELECT id FROM books WHERE metadataStatus = :status ORDER BY addedAt DESC")
     fun observeIdsWithStatus(status: String): Flow<List<Long>>
 

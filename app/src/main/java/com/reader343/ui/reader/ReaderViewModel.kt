@@ -36,6 +36,7 @@ import com.reader343.domain.NoteAnchor
 import com.reader343.domain.OutlineEntry
 import com.reader343.domain.ReadingPace
 import com.reader343.domain.chapterAt
+import com.reader343.domain.detectTextLayer
 import com.reader343.domain.PageAppearance
 import com.reader343.pdf.PageBitmapCache
 import com.reader343.pdf.PageSize
@@ -237,6 +238,20 @@ class ReaderViewModel @Inject constructor(
             updateReady { it.copy(pace = pace) }
         }
         preloadText(initial)
+        if (book.hasTextLayer == null) checkTextLayer()
+    }
+
+    private fun checkTextLayer() {
+        viewModelScope.launch {
+            val hasTextLayer = try {
+                detectTextLayer(pageCount) { engine.extractText(it) }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Throwable) {
+                return@launch
+            }
+            repository.setHasTextLayer(bookId, hasTextLayer)
+        }
     }
 
     fun onViewportChanged(size: IntSize) {

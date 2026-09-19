@@ -6,4 +6,5 @@ data class Book(
     val filePath: String,
     val pageCount: Int,
     val lastPage: Int,
+    val hasTextLayer: Boolean?,
 )
