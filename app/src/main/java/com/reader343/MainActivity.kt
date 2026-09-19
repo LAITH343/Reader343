@@ -1,5 +1,6 @@
 package com.reader343
 
+import android.content.Context
 import android.content.Intent
 import android.graphics.Color
 import android.os.Build
@@ -11,6 +12,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
+import androidx.core.net.toUri
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import com.reader343.data.repo.LibraryRepository
@@ -39,6 +41,8 @@ class MainActivity : AppCompatActivity() {
 
     private val continueRequests = Channel<ReaderRequest>(Channel.CONFLATED)
     private val continueFlow = continueRequests.receiveAsFlow()
+    private val updateRequests = Channel<Unit>(Channel.CONFLATED)
+    private val updateFlow = updateRequests.receiveAsFlow()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -64,7 +68,7 @@ class MainActivity : AppCompatActivity() {
                     onDispose {}
                 }
                 Reader343Theme(darkTheme = darkTheme) {
-                    AppNav(continueRequests = continueFlow)
+                    AppNav(continueRequests = continueFlow, updateRequests = updateFlow)
                 }
             }
         }
@@ -84,6 +88,10 @@ class MainActivity : AppCompatActivity() {
                 val bookId = intent.getLongExtra(EXTRA_BOOK_ID, -1L).takeIf { it >= 0 } ?: return
                 continueRequests.trySend(ReaderRequest(bookId, intent.getIntExtra(EXTRA_PAGE, -1)))
             }
+            Intent.ACTION_VIEW -> {
+                val data = intent.data ?: return
+                if (data.scheme == DEEP_LINK_SCHEME && data.host == DEEP_LINK_UPDATE_HOST) updateRequests.trySend(Unit)
+            }
         }
     }
 
@@ -98,5 +106,10 @@ class MainActivity : AppCompatActivity() {
         const val ACTION_OPEN_READER = "com.reader343.action.OPEN_READER"
         const val EXTRA_BOOK_ID = "com.reader343.extra.BOOK_ID"
         const val EXTRA_PAGE = "com.reader343.extra.PAGE"
+        private const val DEEP_LINK_SCHEME = "reader343"
+        private const val DEEP_LINK_UPDATE_HOST = "update"
+
+        fun updateIntent(context: Context): Intent =
+            Intent(Intent.ACTION_VIEW, "$DEEP_LINK_SCHEME://$DEEP_LINK_UPDATE_HOST".toUri(), context, MainActivity::class.java)
     }
 }

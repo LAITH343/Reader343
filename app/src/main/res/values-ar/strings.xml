@@ -412,6 +412,12 @@
     <string name="notes_today_at">اليوم، %1$s</string>
     <string name="notes_yesterday">أمس</string>
     <string name="update_title">تحديث التطبيق</string>
+    <string name="update_progress_channel_name">تنزيل التحديثات</string>
+    <string name="update_progress_channel_description">تقدّم تنزيل تحديث التطبيق</string>
+    <string name="update_ready_channel_name">تحديثات التطبيق</string>
+    <string name="update_ready_channel_description">تنبيه عندما يصبح التحديث جاهزًا للتثبيت</string>
+    <string name="update_ready_body_version">تم تنزيل الإصدار %1$s. اضغط للتثبيت.</string>
+    <string name="update_ready_body">تم تنزيل التحديث. اضغط للتثبيت.</string>
     <string name="update_kicker_available">يتوفر تحديث</string>
     <string name="update_kicker_downloading">جارٍ التنزيل</string>
     <string name="update_kicker_paused">متوقف مؤقتًا</string>
@@ -433,7 +439,7 @@
         <item quantity="many">%1$s تغييرًا جاهزًا للتنزيل.</item>
         <item quantity="other">%1$s تغيير جاهز للتنزيل.</item>
     </plurals>
-    <string name="update_sub_downloading">أبقِ التطبيق مفتوحًا — يستمر التنزيل في الخلفية.</string>
+    <string name="update_sub_downloading">يمكنك مغادرة التطبيق — يستمر التنزيل في الخلفية.</string>
     <string name="update_sub_paused">استأنف متى عدت إلى شبكة Wi-Fi.</string>
     <string name="update_sub_verifying">جارٍ التحقق من الحزمة وتوقيعها.</string>
     <string name="update_sub_ready">تم التحقق. سيطلب منك Android تأكيد التثبيت.</string>

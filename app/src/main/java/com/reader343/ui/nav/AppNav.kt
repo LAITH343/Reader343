@@ -62,7 +62,10 @@ object Routes {
 }
 
 @Composable
-fun AppNav(continueRequests: Flow<ReaderRequest> = emptyFlow()) {
+fun AppNav(
+    continueRequests: Flow<ReaderRequest> = emptyFlow(),
+    updateRequests: Flow<Unit> = emptyFlow(),
+) {
     val navController = rememberNavController()
     val reduced = reducedMotion()
     val bottomBar = remember { BottomBarVisibility() }
@@ -180,6 +183,11 @@ fun AppNav(continueRequests: Flow<ReaderRequest> = emptyFlow()) {
                 }
                 else -> navController.navigate(Routes.reader(bookId, request.page)) { popUpTo(Routes.HOME) }
             }
+        }
+    }
+    LaunchedEffect(navController, updateRequests) {
+        updateRequests.collect {
+            navController.navigate(Routes.UPDATE) { launchSingleTop = true }
         }
     }
 }

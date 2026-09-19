@@ -63,6 +63,7 @@ import com.reader343.ui.components.formatNumber
 import com.reader343.ui.components.formatPercent
 import com.reader343.ui.components.formatRelative
 import com.reader343.ui.components.riseIn
+import com.reader343.ui.settings.rememberNotificationAccess
 import com.reader343.ui.theme.Reader343Theme
 import com.reader343.ui.theme.appColors
 import com.reader343.ui.theme.appShapes
@@ -90,6 +91,7 @@ fun UpdateRoute(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    val notifications = rememberNotificationAccess()
     var pendingInstall by remember { mutableStateOf<File?>(null) }
     val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) {
         val file = pendingInstall
@@ -104,8 +106,8 @@ fun UpdateRoute(
         actions = UpdateActions(
             onBack = onBack,
             onCheck = viewModel::check,
-            onDownload = { viewModel.download() },
-            onDownloadMetered = { viewModel.download(allowMetered = true) },
+            onDownload = { notifications.request { viewModel.download() } },
+            onDownloadMetered = { notifications.request { viewModel.download(allowMetered = true) } },
             onPause = viewModel::pause,
             onCancel = viewModel::cancel,
             onInstall = { file ->

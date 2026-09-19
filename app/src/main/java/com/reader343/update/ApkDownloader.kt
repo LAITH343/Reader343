@@ -80,7 +80,10 @@ class ApkDownloader @Inject constructor(
                     return@withLock
                 }
                 val id = ++generation
+                val resumed = withContext(Dispatchers.IO) { partFile(asset).length() }
+                _state.value = DownloadState.Downloading(resumed, asset.size, 0L)
                 job = scope.launch { download(asset, id) }
+                UpdateDownloadService.start(context)
             }
         }
     }
