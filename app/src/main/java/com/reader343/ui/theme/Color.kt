@@ -48,6 +48,7 @@ data class AppColors(
     val accTint16: Color get() = TintBase.copy(alpha = 0.16f)
     val accTint18: Color get() = TintBase.copy(alpha = 0.18f)
     val accTint22: Color get() = TintBase.copy(alpha = 0.22f)
+    val accTint26: Color get() = TintBase.copy(alpha = 0.26f)
     val accTint28: Color get() = TintBase.copy(alpha = 0.28f)
     val accLtTint12: Color get() = LightTintBase.copy(alpha = 0.12f)
     val accLtTint16: Color get() = LightTintBase.copy(alpha = 0.16f)
@@ -148,6 +149,15 @@ object PaperInk {
 object PaperShell {
     val Normal = Color(0xFF20222F)
     val Sepia = Color(0xFF241F18)
+}
+
+@Immutable
+data class SpokenMarkColors(val fill: Color, val line: Color)
+
+object SpokenMark {
+    val Normal = SpokenMarkColors(fill = Color(0x335A4F9C), line = Color(0xFF5A4F9C))
+    val Night = SpokenMarkColors(fill = Color(0x579184D9), line = Color(0xFFCFC8F0))
+    val Sepia = SpokenMarkColors(fill = Color(0x334B3F86), line = Color(0xFF4B3F86))
 }
 
 object InkColors {

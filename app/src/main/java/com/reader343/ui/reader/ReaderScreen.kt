@@ -95,6 +95,10 @@ import com.reader343.domain.Highlight
 import com.reader343.domain.NormRect
 import com.reader343.domain.OutlineEntry
 import com.reader343.domain.ReadingPace
+import com.reader343.domain.ReadAloudAvailability
+import com.reader343.domain.SpeechUnit
+import com.reader343.domain.TtsStatus
+import com.reader343.domain.spokenFillRects
 import com.reader343.domain.chapterAt
 import com.reader343.pdf.PageSize
 import com.reader343.ui.theme.Reader343Theme
@@ -116,6 +120,7 @@ fun ReaderRoute(
     val markup by viewModel.markup.collectAsStateWithLifecycle()
     val notes by viewModel.notes.collectAsStateWithLifecycle()
     val pageAppearance by viewModel.pageAppearance.collectAsStateWithLifecycle()
+    val readAloud by viewModel.readAloud.collectAsStateWithLifecycle()
 
     LaunchedEffect(jumpRequest, state is ReaderUiState.Ready) {
         if (jumpRequest >= 0 && state is ReaderUiState.Ready) {
@@ -135,6 +140,8 @@ fun ReaderRoute(
         notes = notes,
         noteActions = viewModel,
         readerActions = viewModel,
+        readAloud = readAloud,
+        readAloudActions = viewModel,
         onBack = onBack,
         onOpenNotes = {
             viewModel.onLeaveForNotes()
@@ -175,6 +182,8 @@ fun ReaderScreen(
     loadPage: suspend (page: Int, viewport: IntSize) -> ImageBitmap?,
     modifier: Modifier = Modifier,
     pageStyle: PageStyle = PageStyle.Normal,
+    readAloud: ReadAloudUi = ReadAloudUi(),
+    readAloudActions: ReadAloudActions = ReadAloudActions.None,
 ) {
     val chromeVisible = (state as? ReaderUiState.Ready)?.chromeVisible ?: true
     SystemBarsVisibility(visible = chromeVisible)
@@ -208,6 +217,7 @@ fun ReaderScreen(
                         noteActions = noteActions,
                         uiDirection = uiDirection,
                         pageStyle = pageStyle,
+                        spoken = readAloud.unit,
                         onPageSettled = onPageSettled,
                         onPageRequestHandled = onPageRequestHandled,
                         onZoomGestureStart = onZoomGestureStart,
@@ -223,16 +233,20 @@ fun ReaderScreen(
                     state = state,
                     hasNotes = notes.byPage.isNotEmpty(),
                     zoomed = zoom.isZoomed,
+                    readAloud = readAloud,
                     onBack = onBack,
                     onShowNotes = onOpenNotes,
                     onToggleZoom = readerActions::onToggleZoom,
+                    onReadAloud = readAloudActions::onReadAloud,
                     modifier = Modifier.align(Alignment.TopCenter),
                 )
                 ReaderBottomChrome(
                     visible = state.chromeVisible,
                     state = state,
                     markup = markup,
+                    readAloud = readAloud,
                     actions = readerActions,
+                    readAloudActions = readAloudActions,
                     markupActions = markupActions,
                     onAddNoteFromSelection = noteActions::onAddNoteFromSelection,
                     modifier = Modifier.align(Alignment.BottomCenter),
@@ -244,6 +258,9 @@ fun ReaderScreen(
                         onDelete = noteActions::onDeleteNote,
                         onDismiss = noteActions::onDismissNote,
                     )
+                }
+                if (readAloud.voicesVisible) {
+                    ReadAloudVoicesSheet(readAloud = readAloud, actions = readAloudActions)
                 }
                 if (state.contentsVisible) {
                     ContentsSheet(
@@ -269,6 +286,7 @@ private fun ReaderPager(
     noteActions: NoteActions,
     uiDirection: LayoutDirection,
     pageStyle: PageStyle,
+    spoken: SpeechUnit?,
     onPageSettled: (Int) -> Unit,
     onPageRequestHandled: () -> Unit,
     onZoomGestureStart: () -> Unit,
@@ -317,6 +335,7 @@ private fun ReaderPager(
             noteActions = noteActions,
             uiDirection = uiDirection,
             pageStyle = pageStyle,
+            spoken = spoken?.takeIf { it.page == index },
             onZoomGestureStart = onZoomGestureStart,
             onTransform = onTransform,
             onZoomGestureEnd = onZoomGestureEnd,
@@ -346,6 +365,7 @@ private fun PdfPage(
     noteActions: NoteActions,
     uiDirection: LayoutDirection,
     pageStyle: PageStyle,
+    spoken: SpeechUnit?,
     onZoomGestureStart: () -> Unit,
     onTransform: (Offset, Offset, Float) -> Unit,
     onZoomGestureEnd: (Offset, Velocity) -> Unit,
@@ -360,6 +380,10 @@ private fun PdfPage(
     val handleRadius = with(density) { HandleRadius.toPx() }
     val handleTouchRadius = with(density) { HandleTouchRadius.toPx() }
     val markStroke = with(density) { MarkStroke.toPx() }
+    val spokenStroke = with(density) { SpokenStroke.toPx() }
+    val spokenFill = remember(spoken, highlights) {
+        spoken?.let { unit -> spokenFillRects(unit.rects, highlights.flatMap { it.rects }) }.orEmpty()
+    }
     val floatGap = with(density) { FloatGap.toPx() }
     val floatMargin = with(density) { FloatMargin.toPx() }
     val markerSize = with(density) { NoteMarkerSize.toPx() }
@@ -469,6 +493,7 @@ private fun PdfPage(
                         )
                     }
                     highlights.forEach { drawMarks(it.rects, pageStyle.mark(Color(it.color)), pageStyle.markBlend, layout) }
+                    spoken?.let { drawSpoken(it.rects, spokenFill, pageStyle, layout, spokenStroke / zoom.scale) }
                     activeHighlight?.let { drawOutlines(it.rects, accent, layout, markStroke / zoom.scale) }
                     noteAnchor?.let { drawOutlines(listOf(it), markerColor, layout, markStroke / zoom.scale) }
                     drawNoteMarkers(
@@ -508,6 +533,23 @@ private fun DrawScope.drawMarks(rects: List<NormRect>, color: Color, blendMode: 
     rects.forEach { rect ->
         val area = layout.toContent(rect)
         drawRect(color, area.topLeft, area.size, blendMode = blendMode)
+    }
+}
+
+private fun DrawScope.drawSpoken(
+    rects: List<NormRect>,
+    fill: List<NormRect>,
+    pageStyle: PageStyle,
+    layout: PageLayout,
+    stroke: Float,
+) {
+    fill.forEach { rect ->
+        val area = layout.toContent(rect)
+        drawRect(pageStyle.spoken.fill, area.topLeft, area.size)
+    }
+    rects.forEach { rect ->
+        val area = layout.toContent(rect)
+        drawRect(pageStyle.spoken.line, Offset(area.left, area.bottom - stroke), Size(area.width, stroke))
     }
 }
 
@@ -770,6 +812,7 @@ private fun HighlightMenu(
 private val HandleRadius = 9.dp
 private val HandleTouchRadius = 28.dp
 private val MarkStroke = 2.dp
+private val SpokenStroke = 2.dp
 private val FloatGap = 12.dp
 private val FloatMargin = 8.dp
 private const val SELECTION_ALPHA = 0.6f
@@ -830,7 +873,12 @@ private fun previewState(page: Int) = ReaderUiState.Ready(
 )
 
 @Composable
-private fun ReaderPreviewContent(state: ReaderUiState, markup: MarkupState = MarkupState(), pageStyle: PageStyle = PageStyle.Normal) {
+private fun ReaderPreviewContent(
+    state: ReaderUiState,
+    markup: MarkupState = MarkupState(),
+    pageStyle: PageStyle = PageStyle.Normal,
+    readAloud: ReadAloudUi = ReadAloudUi(),
+) {
     ReaderScreen(
         state = state,
         zoom = ZoomState(),
@@ -851,6 +899,7 @@ private fun ReaderPreviewContent(state: ReaderUiState, markup: MarkupState = Mar
         onTap = {},
         loadPage = { _, _ -> null },
         pageStyle = pageStyle,
+        readAloud = readAloud,
     )
 }
 
@@ -859,6 +908,46 @@ private fun ReaderPreviewContent(state: ReaderUiState, markup: MarkupState = Mar
 private fun ReaderReadyPreview() {
     Reader343Theme {
         ReaderPreviewContent(state = previewState(3))
+    }
+}
+
+@Preview(showBackground = true, heightDp = 780)
+@Composable
+private fun ReaderReadAloudPreview() {
+    Reader343Theme {
+        ReaderPreviewContent(
+            state = previewState(3),
+            pageStyle = PageStyle.Night,
+            readAloud = ReadAloudUi(
+                availability = ReadAloudAvailability.Ready,
+                status = TtsStatus.Playing,
+                title = "Designing Data-Intensive Applications",
+                unit = SpeechUnit(
+                    page = 3,
+                    sentenceIndex = 2,
+                    charStart = 0,
+                    charEnd = 40,
+                    text = "keep faults from turning into failures",
+                    rects = listOf(NormRect(0.1f, 0.3f, 0.9f, 0.32f), NormRect(0.1f, 0.33f, 0.5f, 0.35f)),
+                ),
+                sentence = 3,
+                sentences = 9,
+                remainingMs = 8 * 60_000L,
+                inChapter = true,
+            ),
+        )
+    }
+}
+
+@Preview(showBackground = true, heightDp = 780, locale = "ar")
+@Composable
+private fun ReaderScanPageRtlPreview() {
+    Reader343Theme(darkTheme = false) {
+        ReaderPreviewContent(
+            state = previewState(3),
+            pageStyle = PageStyle.Sepia,
+            readAloud = ReadAloudUi(availability = ReadAloudAvailability.NoText),
+        )
     }
 }
 

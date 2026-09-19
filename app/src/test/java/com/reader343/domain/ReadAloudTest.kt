@@ -52,4 +52,43 @@ class ReadAloudTest {
         assertEquals(0L, progress.positionMs)
         assertEquals(71L, progress.durationMs)
     }
+
+    @Test
+    fun remainingScalesWithRate() {
+        val progress = ReadAloudProgress(positionMs = 40_000L, durationMs = 120_000L)
+        assertEquals(80_000L, progress.remainingMs(1f))
+        assertEquals(40_000L, progress.remainingMs(2f))
+        assertEquals(0L, ReadAloudProgress(positionMs = 9L, durationMs = 5L).remainingMs(1f))
+    }
+
+    @Test
+    fun availabilityHidesBookWithoutTextLayer() {
+        assertEquals(ReadAloudAvailability.Hidden, readAloudAvailability(hasTextLayer = false, pageUsable = true))
+        assertEquals(ReadAloudAvailability.NoText, readAloudAvailability(hasTextLayer = true, pageUsable = false))
+        assertEquals(ReadAloudAvailability.NoText, readAloudAvailability(hasTextLayer = null, pageUsable = false))
+        assertEquals(ReadAloudAvailability.Ready, readAloudAvailability(hasTextLayer = true, pageUsable = true))
+        assertEquals(ReadAloudAvailability.Ready, readAloudAvailability(hasTextLayer = null, pageUsable = null))
+    }
+
+    @Test
+    fun unitAtCharFindsContainingSentence() {
+        val page = listOf(
+            SpeechUnit(0, 0, 0, 10, "a", emptyList()),
+            SpeechUnit(0, 1, 12, 30, "b", emptyList()),
+        )
+        assertEquals(0, page.unitAtChar(3)?.sentenceIndex)
+        assertEquals(1, page.unitAtChar(12)?.sentenceIndex)
+        assertEquals(0, page.unitAtChar(11)?.sentenceIndex)
+        assertEquals(1, page.unitAtChar(99)?.sentenceIndex)
+        assertEquals(null, emptyList<SpeechUnit>().unitAtChar(0))
+    }
+
+    @Test
+    fun spokenFillSkipsRectsUnderSavedHighlights() {
+        val first = NormRect(0.1f, 0.1f, 0.9f, 0.12f)
+        val second = NormRect(0.1f, 0.13f, 0.5f, 0.15f)
+        val saved = listOf(NormRect(0.2f, 0.1f, 0.4f, 0.12f))
+        assertEquals(listOf(second), spokenFillRects(listOf(first, second), saved))
+        assertEquals(listOf(first, second), spokenFillRects(listOf(first, second), emptyList()))
+    }
 }

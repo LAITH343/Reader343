@@ -9,6 +9,8 @@ import com.reader343.domain.PageAppearance
 import com.reader343.ui.theme.PaperInk
 import com.reader343.ui.theme.PaperShell
 import com.reader343.ui.theme.PaperSwatch
+import com.reader343.ui.theme.SpokenMark
+import com.reader343.ui.theme.SpokenMarkColors
 
 @Immutable
 class PageStyle private constructor(
@@ -16,6 +18,7 @@ class PageStyle private constructor(
     val paper: Color,
     val filter: ColorFilter?,
     val markBlend: BlendMode,
+    val spoken: SpokenMarkColors,
     private val markAlpha: Float,
 ) {
     fun mark(color: Color): Color = if (markAlpha < 1f) color.copy(alpha = markAlpha) else color
@@ -25,6 +28,7 @@ class PageStyle private constructor(
             shell = PaperShell.Normal,
             paper = PaperSwatch.Normal,
             filter = paperFilter(paper = PaperSwatch.Normal, ink = PaperInk.Normal),
+            spoken = SpokenMark.Normal,
             markBlend = BlendMode.Multiply,
             markAlpha = 1f,
         )
@@ -33,6 +37,7 @@ class PageStyle private constructor(
             shell = Color.Unspecified,
             paper = PaperSwatch.Night,
             filter = paperFilter(paper = PaperSwatch.Night, ink = PaperInk.Night),
+            spoken = SpokenMark.Night,
             markBlend = BlendMode.SrcOver,
             markAlpha = NIGHT_MARK_ALPHA,
         )
@@ -41,6 +46,7 @@ class PageStyle private constructor(
             shell = PaperShell.Sepia,
             paper = PaperSwatch.Sepia,
             filter = paperFilter(paper = PaperSwatch.Sepia, ink = PaperInk.Sepia),
+            spoken = SpokenMark.Sepia,
             markBlend = BlendMode.Multiply,
             markAlpha = 1f,
         )

@@ -451,4 +451,13 @@
     <string name="read_aloud_speed_value">Reading speed %1$s</string>
     <string name="read_aloud_status">Sentence %1$s of %2$s</string>
     <string name="read_aloud_status_paused">%1$s · Paused</string>
+    <string name="read_aloud">Read aloud</string>
+    <string name="read_aloud_scan_notice">This page is a scan — there is no selectable text to speak.</string>
+    <string name="read_aloud_speed">Reading speed</string>
+    <string name="read_aloud_voice">Voice</string>
+    <string name="read_aloud_left_in_chapter">%1$s left in chapter</string>
+    <string name="read_aloud_voices_title">Choose a voice</string>
+    <string name="read_aloud_voices_subtitle">Voices come from the speech engine installed on this device.</string>
+    <string name="read_aloud_voices_done">Done</string>
+    <string name="read_aloud_voice_not_installed">Not installed</string>
 </resources>

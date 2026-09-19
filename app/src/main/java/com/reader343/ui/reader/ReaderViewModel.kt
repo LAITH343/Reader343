@@ -38,17 +38,27 @@ import com.reader343.domain.ReadingPace
 import com.reader343.domain.chapterAt
 import com.reader343.domain.detectTextLayer
 import com.reader343.domain.PageAppearance
+import com.reader343.domain.ReadAloudAvailability
+import com.reader343.domain.SpeechUnit
+import com.reader343.domain.TtsState
+import com.reader343.domain.TtsStatus
+import com.reader343.domain.TtsVoice
+import com.reader343.domain.estimateReadAloudProgress
+import com.reader343.domain.readAloudAvailability
+import com.reader343.domain.unitAtChar
 import com.reader343.pdf.PageBitmapCache
 import com.reader343.pdf.PageSize
 import com.reader343.pdf.PageText
 import com.reader343.pdf.PdfEngine
 import com.reader343.pdf.TextLayer
+import com.reader343.tts.ReadAloudPlayer
 import com.reader343.ui.nav.Routes
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
@@ -58,9 +68,14 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.mapLatest
+import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -98,7 +113,14 @@ data class SessionUi(val startedAt: Long, val pages: Int)
 
 class PageDetail(val page: Int, val region: Rect, val tier: Float, val bitmap: ImageBitmap)
 
-@OptIn(FlowPreview::class)
+private class ReadAloudInputs(
+    val tts: TtsState,
+    val voices: List<TtsVoice>,
+    val availability: ReadAloudAvailability,
+    val voicesVisible: Boolean,
+)
+
+@OptIn(FlowPreview::class, ExperimentalCoroutinesApi::class)
 @HiltViewModel
 class ReaderViewModel @Inject constructor(
     private val savedStateHandle: SavedStateHandle,
@@ -109,8 +131,9 @@ class ReaderViewModel @Inject constructor(
     private val sessionRepository: SessionRepository,
     settingsRepository: SettingsRepository,
     private val engine: PdfEngine,
+    private val player: ReadAloudPlayer,
     @ApplicationScope private val appScope: CoroutineScope,
-) : ViewModel(), MarkupActions, NoteActions, ReaderActions {
+) : ViewModel(), MarkupActions, NoteActions, ReaderActions, ReadAloudActions {
 
     private val bookId: Long = checkNotNull(savedStateHandle[Routes.ARG_BOOK_ID])
 
@@ -133,6 +156,24 @@ class ReaderViewModel @Inject constructor(
         .map { it.pageAppearance }
         .stateIn(viewModelScope, SharingStarted.Eagerly, PageAppearance.Normal)
 
+    private val currentPage = MutableStateFlow(0)
+    private val textLayerFlag = MutableStateFlow<Boolean?>(false)
+    private val usablePages = MutableStateFlow<Map<Int, Boolean>>(emptyMap())
+    private val voicesVisible = MutableStateFlow(false)
+    private var bookTitle = ""
+    private var coverPath: String? = null
+    private var spokenPage = -1
+    private var spokenUnits: List<SpeechUnit> = emptyList()
+
+    private val availability = combine(textLayerFlag, currentPage, usablePages) { flag, page, usable ->
+        readAloudAvailability(flag, usable[page])
+    }
+
+    val readAloud: StateFlow<ReadAloudUi> =
+        combine(player.state, player.voices, availability, voicesVisible, ::ReadAloudInputs)
+            .mapLatest(::readAloudUi)
+            .stateIn(viewModelScope, SharingStarted.Eagerly, ReadAloudUi())
+
     private val cache = PageBitmapCache()
     private val textLayer = TextLayer(engine)
     private var draft: SelectionDraft? = null
@@ -141,7 +182,6 @@ class ReaderViewModel @Inject constructor(
     private var pendingDrag: Offset? = null
     private var selectionColor = HighlightColor.entries.first().argb
     private val inFlight = mutableMapOf<PageBitmapCache.Key, Deferred<Bitmap?>>()
-    private val currentPage = MutableStateFlow(0)
     private var viewport = IntSize.Zero
     private var pageCount = 0
     private var savedPage = -1
@@ -185,6 +225,9 @@ class ReaderViewModel @Inject constructor(
         val initial = (if (requested >= 0) requested else book.lastPage).coerceIn(0, pageCount - 1)
         savedPage = initial
         currentPage.value = initial
+        bookTitle = book.title
+        coverPath = book.coverPath
+        textLayerFlag.value = book.hasTextLayer
         val outline = engine.outline()
         _uiState.value = ReaderUiState.Ready(
             title = book.title,
@@ -237,6 +280,13 @@ class ReaderViewModel @Inject constructor(
             val pace = sessionRepository.pace(bookId)
             updateReady { it.copy(pace = pace) }
         }
+        viewModelScope.launch {
+            player.state
+                .filter { it.bookId == bookId && it.status == TtsStatus.Playing }
+                .mapNotNull { it.unit }
+                .distinctUntilChanged()
+                .collect(::followSpoken)
+        }
         preloadText(initial)
         if (book.hasTextLayer == null) checkTextLayer()
     }
@@ -250,6 +300,7 @@ class ReaderViewModel @Inject constructor(
             } catch (e: Throwable) {
                 return@launch
             }
+            textLayerFlag.value = hasTextLayer
             repository.setHasTextLayer(bookId, hasTextLayer)
         }
     }
@@ -387,6 +438,137 @@ class ReaderViewModel @Inject constructor(
         scheduleChromeHide()
     }
 
+    override fun onReadAloud() {
+        scheduleChromeHide()
+        if (speakingHere()) {
+            player.toggle()
+            return
+        }
+        if (readAloud.value.availability != ReadAloudAvailability.Ready) return
+        onDismissSelection()
+        player.start(bookId, currentPage.value)
+    }
+
+    override fun onReadAloudToggle() {
+        scheduleChromeHide()
+        player.toggle()
+    }
+
+    override fun onReadAloudPrevious() {
+        scheduleChromeHide()
+        player.previous()
+    }
+
+    override fun onReadAloudNext() {
+        scheduleChromeHide()
+        player.next()
+    }
+
+    override fun onReadAloudStop() {
+        scheduleChromeHide()
+        voicesVisible.value = false
+        player.stop()
+    }
+
+    override fun onReadAloudSpeed() {
+        scheduleChromeHide()
+        player.cycleSpeed()
+    }
+
+    override fun onShowVoices() {
+        chromeJob?.cancel()
+        player.refreshVoices()
+        voicesVisible.value = true
+    }
+
+    override fun onHideVoices() {
+        voicesVisible.value = false
+        scheduleChromeHide()
+    }
+
+    override fun onSelectVoice(voice: TtsVoice) = player.setVoice(voice)
+
+    private fun speakingHere(): Boolean {
+        val tts = player.state.value
+        return tts.bookId == bookId && tts.status != TtsStatus.Idle
+    }
+
+    private fun speakFrom(page: Int, point: Offset, layout: PageLayout) {
+        clearSelection()
+        selectionJob = viewModelScope.launch {
+            val text = loadText(page) ?: return@launch
+            val index = text.nearestChar(point.x, point.y, layout.page.width / layout.page.height) ?: return@launch
+            val unit = unitsFor(page).unitAtChar(index) ?: return@launch
+            player.start(bookId, page, unit.sentenceIndex)
+        }
+    }
+
+    private suspend fun unitsFor(page: Int): List<SpeechUnit> {
+        if (page != spokenPage || spokenUnits.isEmpty()) {
+            spokenUnits = player.pageUnits(page)
+            spokenPage = page
+        }
+        return spokenUnits
+    }
+
+    private suspend fun readAloudUi(inputs: ReadAloudInputs): ReadAloudUi {
+        val tts = inputs.tts
+        val own = tts.bookId == bookId && tts.status != TtsStatus.Idle
+        val base = ReadAloudUi(
+            availability = inputs.availability,
+            status = if (own) tts.status else TtsStatus.Idle,
+            title = bookTitle,
+            coverPath = coverPath,
+            rate = tts.rate,
+            voice = tts.voice,
+            locale = tts.locale,
+            voices = inputs.voices,
+            voicesVisible = own && inputs.voicesVisible,
+        )
+        val position = tts.position
+        if (!own || position == null) return base
+        val units = unitsFor(position.page)
+        val index = units.indexOfFirst { it.sentenceIndex == position.sentenceIndex }
+        val chapter = (_uiState.value as? ReaderUiState.Ready)?.outline?.chapterAt(position.page, pageCount)
+        val progress = estimateReadAloudProgress(
+            pageUnits = units,
+            sentenceIndex = position.sentenceIndex,
+            page = position.page,
+            startPage = chapter?.startPage ?: 0,
+            endPage = chapter?.endPage ?: pageCount,
+        )
+        return base.copy(
+            unit = tts.unit?.takeIf { it.page == position.page },
+            sentence = if (index >= 0) index + 1 else 0,
+            sentences = units.size,
+            remainingMs = progress.remainingMs(tts.rate),
+            inChapter = chapter != null,
+        )
+    }
+
+    private fun followSpoken(unit: SpeechUnit) {
+        if (unit.page != currentPage.value) {
+            if (!_markup.value.highlighting) updateReady { it.copy(pageRequest = unit.page) }
+            return
+        }
+        val zoom = _zoom.value
+        if (!zoom.isZoomed) return
+        val layout = layoutFor(unit.page) ?: return
+        val bounds = unit.rects.reduceOrNull(NormRect::union) ?: return
+        val visible = layout.visibleRegion(zoom) ?: return
+        val inView = bounds.left >= visible.left && bounds.right <= visible.right &&
+            bounds.top >= visible.top && bounds.bottom <= visible.bottom
+        if (inView) return
+        val center = layout.toContent((bounds.left + bounds.right) / 2f, (bounds.top + bounds.bottom) / 2f)
+        stopZoomAnimation()
+        _zoom.value = layout.clamp(
+            zoom.copy(
+                offsetX = viewport.width / 2f - center.x * zoom.scale,
+                offsetY = viewport.height / 2f - center.y * zoom.scale,
+            ),
+        )
+    }
+
     private fun animateScale(layout: PageLayout, focus: Offset, target: Float) {
         stopZoomAnimation()
         val start = _zoom.value
@@ -443,6 +625,10 @@ class ReaderViewModel @Inject constructor(
         val layout = layoutFor(page) ?: return
         val point = layout.toNormalized(_zoom.value, position)
         if (point.x !in 0f..1f || point.y !in 0f..1f) return
+        if (speakingHere() && !_markup.value.highlightMode) {
+            speakFrom(page, point, layout)
+            return
+        }
         clearSelection()
         touch = position
         showLoupe()
@@ -743,7 +929,7 @@ class ReaderViewModel @Inject constructor(
 
     private suspend fun loadText(page: Int): PageText? =
         try {
-            textLayer.get(page)
+            textLayer.get(page).also { text -> usablePages.update { it + (page to text.isUsable) } }
         } catch (e: CancellationException) {
             throw e
         } catch (e: Throwable) {

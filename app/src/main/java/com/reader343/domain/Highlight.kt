@@ -13,6 +13,9 @@ data class NormRect(
     fun contains(x: Float, y: Float, slopX: Float = 0f, slopY: Float = 0f): Boolean =
         x >= left - slopX && x <= right + slopX && y >= top - slopY && y <= bottom + slopY
 
+    fun intersects(other: NormRect): Boolean =
+        left < other.right && other.left < right && top < other.bottom && other.top < bottom
+
     fun union(other: NormRect): NormRect = NormRect(
         left = minOf(left, other.left),
         top = minOf(top, other.top),

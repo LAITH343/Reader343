@@ -106,6 +106,8 @@ internal fun ReaderTopChrome(
     onShowNotes: () -> Unit,
     onToggleZoom: () -> Unit,
     modifier: Modifier = Modifier,
+    readAloud: ReadAloudUi = ReadAloudUi(),
+    onReadAloud: () -> Unit = {},
 ) {
     val reduced = reducedMotion()
     AnimatedVisibility(
@@ -119,9 +121,11 @@ internal fun ReaderTopChrome(
                 state = state,
                 hasNotes = hasNotes,
                 zoomed = zoomed,
+                readAloud = readAloud,
                 onBack = onBack,
                 onShowNotes = onShowNotes,
                 onToggleZoom = onToggleZoom,
+                onReadAloud = onReadAloud,
             )
             state.session?.let { SessionPill(session = it, modifier = Modifier.padding(top = 12.dp)) }
         }
@@ -133,9 +137,11 @@ private fun ReaderTopBar(
     state: ReaderUiState.Ready,
     hasNotes: Boolean,
     zoomed: Boolean,
+    readAloud: ReadAloudUi,
     onBack: () -> Unit,
     onShowNotes: () -> Unit,
     onToggleZoom: () -> Unit,
+    onReadAloud: () -> Unit,
 ) {
     val colors = MaterialTheme.appColors
     val page = formatNumber(state.currentPage + 1)
@@ -178,6 +184,9 @@ private fun ReaderTopBar(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
+        }
+        if (readAloud.shown) {
+            ReadAloudButton(readAloud = readAloud, onClick = onReadAloud)
         }
         IconBadgeButton(
             icon = R.drawable.ic_ph_note,
@@ -247,6 +256,8 @@ internal fun ReaderBottomChrome(
     markupActions: MarkupActions,
     onAddNoteFromSelection: () -> Unit,
     modifier: Modifier = Modifier,
+    readAloud: ReadAloudUi = ReadAloudUi(),
+    readAloudActions: ReadAloudActions = ReadAloudActions.None,
 ) {
     val reduced = reducedMotion()
     AnimatedVisibility(
@@ -277,7 +288,13 @@ internal fun ReaderBottomChrome(
                     )
                 }
             }
-            ReaderBottomBar(state = state, markup = markup, actions = actions)
+            ReaderBottomBar(
+                state = state,
+                markup = markup,
+                actions = actions,
+                readAloud = readAloud,
+                readAloudActions = readAloudActions,
+            )
         }
     }
 }
@@ -287,6 +304,8 @@ private fun ReaderBottomBar(
     state: ReaderUiState.Ready,
     markup: MarkupState,
     actions: ReaderActions,
+    readAloud: ReadAloudUi,
+    readAloudActions: ReadAloudActions,
 ) {
     val colors = MaterialTheme.appColors
     var preview by remember { mutableStateOf<Int?>(null) }
@@ -300,6 +319,8 @@ private fun ReaderBottomBar(
             .padding(start = 14.dp, top = 10.dp, end = 14.dp, bottom = 14.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
+        if (readAloud.noText) ScanNotice()
+        if (readAloud.active) ReadAloudMiniPlayer(readAloud = readAloud, actions = readAloudActions)
         Row(
             horizontalArrangement = Arrangement.spacedBy(10.dp),
             verticalAlignment = Alignment.CenterVertically,

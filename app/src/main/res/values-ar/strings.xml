@@ -564,4 +564,13 @@
     <string name="read_aloud_speed_value">سرعة القراءة %1$s</string>
     <string name="read_aloud_status">الجملة %1$s من %2$s</string>
     <string name="read_aloud_status_paused">%1$s · متوقّف مؤقتاً</string>
+    <string name="read_aloud">القراءة الصوتية</string>
+    <string name="read_aloud_scan_notice">هذه الصفحة صورة ممسوحة — لا يوجد نص يمكن نطقه.</string>
+    <string name="read_aloud_speed">سرعة القراءة</string>
+    <string name="read_aloud_voice">الصوت</string>
+    <string name="read_aloud_left_in_chapter">%1$s في الفصل</string>
+    <string name="read_aloud_voices_title">اختر الصوت</string>
+    <string name="read_aloud_voices_subtitle">الأصوات مأخوذة من محرّك النطق في أندرويد.</string>
+    <string name="read_aloud_voices_done">تم</string>
+    <string name="read_aloud_voice_not_installed">غير مثبّت</string>
 </resources>

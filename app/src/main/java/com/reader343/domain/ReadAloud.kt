@@ -46,10 +46,29 @@ fun readAloudSpeedLabel(speed: Float): String {
     return (if (plain.contains('.')) plain else "$plain.0") + "×"
 }
 
+enum class ReadAloudAvailability { Ready, NoText, Hidden }
+
+fun readAloudAvailability(hasTextLayer: Boolean?, pageUsable: Boolean?): ReadAloudAvailability = when {
+    hasTextLayer == false -> ReadAloudAvailability.Hidden
+    pageUsable == false -> ReadAloudAvailability.NoText
+    else -> ReadAloudAvailability.Ready
+}
+
+fun SpeechUnit.containsChar(index: Int): Boolean = index in charStart until charEnd
+
+fun List<SpeechUnit>.unitAtChar(index: Int): SpeechUnit? =
+    firstOrNull { it.containsChar(index) } ?: lastOrNull { it.charStart <= index } ?: firstOrNull()
+
+fun spokenFillRects(unitRects: List<NormRect>, saved: List<NormRect>): List<NormRect> =
+    unitRects.filter { rect -> saved.none { it.intersects(rect) } }
+
 data class ReadAloudProgress(
     val positionMs: Long,
     val durationMs: Long,
-)
+) {
+    fun remainingMs(rate: Float): Long =
+        ((durationMs - positionMs).coerceAtLeast(0L) / rate.coerceAtLeast(SPEED_EPSILON)).toLong()
+}
 
 fun estimateReadAloudProgress(
     pageUnits: List<SpeechUnit>,

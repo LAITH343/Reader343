@@ -6,6 +6,7 @@ import com.reader343.domain.OutlineEntry
 import com.reader343.domain.SpeechUnit
 import com.reader343.domain.TtsState
 import com.reader343.domain.TtsStatus
+import com.reader343.domain.TtsVoice
 import com.reader343.domain.nextReadAloudSpeed
 import com.reader343.pdf.PdfEngine
 import com.reader343.pdf.TextLayer
@@ -22,6 +23,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
@@ -59,7 +61,22 @@ class ReadAloudPlayer @Inject constructor(
 
     val state: StateFlow<TtsState> get() = controller.state
 
+    val voices: StateFlow<List<TtsVoice>> get() = controller.voices
+
     init {
+        scope.launch {
+            controller.state
+                .map { state ->
+                    val page = state.position?.page
+                    if (state.status == TtsStatus.Idle || page == null) null else state.bookId to page
+                }
+                .filterNotNull()
+                .distinctUntilChanged()
+                .collect { (bookId, page) ->
+                    val book = _book.value?.takeIf { it.id == bookId } ?: return@collect
+                    repository.saveProgress(book.id, page, book.pageCount)
+                }
+        }
         scope.launch {
             controller.state.map { it.status }.distinctUntilChanged().collectLatest { status ->
                 if (status != TtsStatus.Idle) return@collectLatest
@@ -115,6 +132,10 @@ class ReadAloudPlayer @Inject constructor(
     fun previous() = controller.previous()
 
     fun cycleSpeed() = controller.setRate(nextReadAloudSpeed(controller.state.value.rate))
+
+    fun setVoice(voice: TtsVoice?) = controller.setVoice(voice)
+
+    fun refreshVoices() = controller.refreshVoices()
 
     suspend fun pageUnits(page: Int): List<SpeechUnit> {
         val source = source ?: return emptyList()
