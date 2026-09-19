@@ -348,6 +348,7 @@ class ReaderViewModel @Inject constructor(
 
     fun onBackground() {
         foreground = false
+        player.stopPreview()
         closeSession()
     }
 
@@ -490,11 +491,15 @@ class ReaderViewModel @Inject constructor(
 
     override fun onHideVoices() {
         voicesVisible.value = false
+        player.stopPreview()
         if (readAloud.value.missingLanguage != null) player.dismissIssue()
         scheduleChromeHide()
     }
 
-    override fun onSelectVoice(voice: TtsVoice) = player.setVoice(voice)
+    override fun onSelectVoice(voice: TtsVoice) {
+        player.setVoice(voice)
+        player.preview(voice = voice)
+    }
 
     override fun onAwaitVoice() {
         voicesVisible.value = false

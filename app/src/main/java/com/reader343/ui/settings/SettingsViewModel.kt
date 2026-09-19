@@ -76,15 +76,26 @@ class SettingsViewModel @Inject constructor(
 
     fun refreshVoices() = player.refreshVoices()
 
-    fun selectVoice(voice: TtsVoice) = player.setVoice(voice)
+    fun selectVoice(voice: TtsVoice) {
+        player.setVoice(voice)
+        player.preview(voice = voice)
+    }
+
+    fun stopPreview() = player.stopPreview()
 
     fun awaitVoice(missing: MissingVoice) {
         awaiting = missing
     }
 
-    fun setReadAloudSpeed(value: Float) = update { repository.setReadAloudSpeed(value) }
+    fun setReadAloudSpeed(value: Float) {
+        update { repository.setReadAloudSpeed(value) }
+        player.preview(speed = value)
+    }
 
-    fun setReadAloudPitch(value: Float) = update { repository.setReadAloudPitch(value) }
+    fun setReadAloudPitch(value: Float) {
+        update { repository.setReadAloudPitch(value) }
+        player.preview(pitch = value)
+    }
 
     fun setReadAloudHighlight(value: Boolean) = update { repository.setReadAloudHighlight(value) }
 
@@ -110,6 +121,10 @@ class SettingsViewModel @Inject constructor(
                 player.setVoice(match)
             }
         }
+    }
+
+    override fun onCleared() {
+        player.stopPreview()
     }
 
     private fun update(block: suspend () -> Unit) {

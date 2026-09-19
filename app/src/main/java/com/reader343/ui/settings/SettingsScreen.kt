@@ -156,6 +156,7 @@ fun SettingsRoute(
     val voices by viewModel.voices.collectAsStateWithLifecycle()
     var voiceSheet by rememberSaveable { mutableStateOf(false) }
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { viewModel.refreshVoices() }
+    LifecycleEventEffect(Lifecycle.Event.ON_STOP) { viewModel.stopPreview() }
     val access = rememberNotificationAccess()
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()

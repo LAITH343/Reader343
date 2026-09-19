@@ -571,6 +571,7 @@
     <string name="read_aloud_left_in_chapter">%1$s في الفصل</string>
     <string name="read_aloud_voices_title">اختر الصوت</string>
     <string name="read_aloud_voices_subtitle">الأصوات مأخوذة من محرّك النطق في أندرويد.</string>
+    <string name="read_aloud_preview_sample">هكذا سيبدو كتابك عند قراءته بصوت عالٍ.</string>
     <string name="read_aloud_voices_done">تم</string>
     <string name="read_aloud_voice_not_installed">غير مثبّت</string>
     <string name="read_aloud_missing_title">صوت %1$s غير مثبّت</string>

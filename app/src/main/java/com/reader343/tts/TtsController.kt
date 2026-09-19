@@ -61,6 +61,7 @@ class TtsController @Inject constructor(
     private val queuedVoices = HashMap<String, TtsVoice?>()
     private var command: Job? = null
     private var append: Job? = null
+    private var preview: Job? = null
 
     private val listener = object : UtteranceProgressListener() {
         override fun onStart(utteranceId: String) {
@@ -189,6 +190,34 @@ class TtsController @Inject constructor(
             }
             if (cursor == null && _state.value.status == TtsStatus.Idle) shutdown()
         }
+    }
+
+    fun preview(text: String, language: String, voiceName: String?, rate: Float, pitch: Float) {
+        if (_state.value.status == TtsStatus.Playing) return
+        preview?.cancel()
+        preview = scope.launch {
+            val engine = obtainEngine() ?: return@launch
+            if (_state.value.status == TtsStatus.Playing) return@launch
+            val installed = offlineVoices(engine).filter(::isInstalled)
+            val voice = installed.firstOrNull { it.name == voiceName }
+                ?: defaultVoice(engine, installed.filter { it.locale.language == language })
+            appliedLanguage = null
+            appliedVoice = null
+            if (voice == null || engine.setVoice(voice) != TextToSpeech.SUCCESS) {
+                if (engine.setLanguage(Locale.forLanguageTag(language)) < TextToSpeech.LANG_AVAILABLE) return@launch
+            }
+            engine.setSpeechRate(rate.coerceIn(MIN_RATE, MAX_RATE))
+            engine.setPitch(pitch.coerceIn(MIN_PITCH, MAX_PITCH))
+            engine.speak(text, TextToSpeech.QUEUE_FLUSH, null, PREVIEW_ID)
+        }
+    }
+
+    fun stopPreview() {
+        preview?.cancel()
+        preview = null
+        if (_state.value.status == TtsStatus.Playing) return
+        tts?.stop()
+        if (cursor == null && _state.value.status == TtsStatus.Idle) shutdown()
     }
 
     fun release() {
@@ -407,13 +436,17 @@ class TtsController @Inject constructor(
             null
         }
 
-    private suspend fun engine(): TextToSpeech? {
+    private suspend fun engine(): TextToSpeech? =
+        obtainEngine() ?: run {
+            fail(TtsIssue.EngineUnavailable)
+            null
+        }
+
+    private suspend fun obtainEngine(): TextToSpeech? {
         val existing = tts
         val pending = ready
         if (existing != null && pending != null) {
-            if (pending.await()) return existing
-            fail(TtsIssue.EngineUnavailable)
-            return null
+            return existing.takeIf { pending.await() }
         }
         val deferred = CompletableDeferred<Boolean>()
         ready = deferred
@@ -432,7 +465,6 @@ class TtsController @Inject constructor(
                 tts = null
                 ready = null
             }
-            fail(TtsIssue.EngineUnavailable)
             return null
         }
         loadVoices(created)
@@ -497,5 +529,6 @@ class TtsController @Inject constructor(
         const val MIN_PITCH = 0.5f
         const val MAX_PITCH = 2f
         private const val MAX_ERRORS = 3
+        private const val PREVIEW_ID = "voice-preview"
     }
 }

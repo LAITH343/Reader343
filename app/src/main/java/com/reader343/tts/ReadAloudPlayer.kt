@@ -1,6 +1,8 @@
 package com.reader343.tts
 
 import android.content.Context
+import android.content.res.Configuration
+import com.reader343.R
 import com.reader343.data.repo.ReaderRepository
 import com.reader343.data.repo.SessionHolder
 import com.reader343.data.repo.SessionRepository
@@ -45,6 +47,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
+import java.util.Locale
 import javax.inject.Inject
 import javax.inject.Provider
 import javax.inject.Singleton
@@ -167,6 +170,22 @@ class ReadAloudPlayer @Inject constructor(
     }
 
     fun refreshVoices() = controller.refreshVoices()
+
+    fun preview(voice: TtsVoice? = null, speed: Float? = null, pitch: Float? = null) {
+        val current = settings.value
+        val language = voice?.locale?.language ?: current.voicePreferences.preferred()
+        val localized = Configuration(context.resources.configuration).apply { setLocale(Locale.forLanguageTag(language)) }
+        val text = context.createConfigurationContext(localized).getString(R.string.read_aloud_preview_sample)
+        controller.preview(
+            text = text,
+            language = language,
+            voiceName = voice?.name ?: current.voices[language],
+            rate = speed ?: current.speed,
+            pitch = pitch ?: current.pitch,
+        )
+    }
+
+    fun stopPreview() = controller.stopPreview()
 
     fun readInstead() {
         val language = controller.state.value.missingLanguage ?: return
