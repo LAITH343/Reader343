@@ -39,6 +39,8 @@ import com.reader343.ui.update.UpdateRoute
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
 
+data class ReaderRequest(val bookId: Long?, val page: Int = -1)
+
 object Routes {
     const val HOME = "home"
     const val LIBRARY = "library"
@@ -60,7 +62,7 @@ object Routes {
 }
 
 @Composable
-fun AppNav(continueRequests: Flow<Long?> = emptyFlow()) {
+fun AppNav(continueRequests: Flow<ReaderRequest> = emptyFlow()) {
     val navController = rememberNavController()
     val reduced = reducedMotion()
     val bottomBar = remember { BottomBarVisibility() }
@@ -167,11 +169,16 @@ fun AppNav(continueRequests: Flow<Long?> = emptyFlow()) {
         }
     }
     LaunchedEffect(navController, continueRequests) {
-        continueRequests.collect { bookId ->
-            if (bookId == null) {
-                navController.navigateToTab(TopLevelTab.Home)
-            } else {
-                navController.navigate(Routes.reader(bookId)) { popUpTo(Routes.HOME) }
+        continueRequests.collect { request ->
+            val bookId = request.bookId
+            val current = navController.currentBackStackEntry
+            when {
+                bookId == null -> navController.navigateToTab(TopLevelTab.Home)
+                current?.destination?.route == Routes.READER &&
+                    current.arguments?.getLong(Routes.ARG_BOOK_ID) == bookId -> {
+                    if (request.page >= 0) current.savedStateHandle[Routes.RESULT_PAGE] = request.page
+                }
+                else -> navController.navigate(Routes.reader(bookId, request.page)) { popUpTo(Routes.HOME) }
             }
         }
     }

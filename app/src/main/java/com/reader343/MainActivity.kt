@@ -18,6 +18,7 @@ import com.reader343.data.repo.SettingsRepository
 import com.reader343.domain.AppSettings
 import com.reader343.domain.ThemeMode
 import com.reader343.ui.nav.AppNav
+import com.reader343.ui.nav.ReaderRequest
 import com.reader343.ui.settings.AppLocales
 import com.reader343.ui.theme.Reader343Theme
 import dagger.hilt.android.AndroidEntryPoint
@@ -36,7 +37,7 @@ class MainActivity : AppCompatActivity() {
     @Inject
     lateinit var libraryRepository: LibraryRepository
 
-    private val continueRequests = Channel<Long?>(Channel.CONFLATED)
+    private val continueRequests = Channel<ReaderRequest>(Channel.CONFLATED)
     private val continueFlow = continueRequests.receiveAsFlow()
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -75,8 +76,15 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun handleIntent(intent: Intent?) {
-        if (intent?.action != ACTION_CONTINUE_READING) return
-        lifecycleScope.launch { continueRequests.send(libraryRepository.continueBook()?.id) }
+        when (intent?.action) {
+            ACTION_CONTINUE_READING -> lifecycleScope.launch {
+                continueRequests.send(ReaderRequest(libraryRepository.continueBook()?.id))
+            }
+            ACTION_OPEN_READER -> {
+                val bookId = intent.getLongExtra(EXTRA_BOOK_ID, -1L).takeIf { it >= 0 } ?: return
+                continueRequests.trySend(ReaderRequest(bookId, intent.getIntExtra(EXTRA_PAGE, -1)))
+            }
+        }
     }
 
     private fun AppSettings.isDark(system: Boolean): Boolean = when (theme) {
@@ -87,5 +95,8 @@ class MainActivity : AppCompatActivity() {
 
     companion object {
         const val ACTION_CONTINUE_READING = "com.reader343.action.CONTINUE_READING"
+        const val ACTION_OPEN_READER = "com.reader343.action.OPEN_READER"
+        const val EXTRA_BOOK_ID = "com.reader343.extra.BOOK_ID"
+        const val EXTRA_PAGE = "com.reader343.extra.PAGE"
     }
 }

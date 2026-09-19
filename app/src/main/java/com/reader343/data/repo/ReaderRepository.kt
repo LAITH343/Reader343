@@ -23,6 +23,7 @@ class ReaderRepository @Inject constructor(
             pageCount = book.pageCount,
             lastPage = progress?.lastPage ?: 0,
             hasTextLayer = book.hasTextLayer,
+            coverPath = book.metadataCoverPath ?: book.coverPath,
         )
     }
 

@@ -553,4 +553,15 @@
         <item quantity="many">%1$s كتاباً بمطابقة غير مؤكدة</item>
         <item quantity="other">%1$s كتاب بمطابقة غير مؤكدة</item>
     </plurals>
+    <string name="read_aloud_channel_name">القراءة الصوتية</string>
+    <string name="read_aloud_channel_description">عناصر التحكم في التشغيل أثناء قراءة الكتاب بصوت عالٍ</string>
+    <string name="read_aloud_notification_tag">القراءة الصوتية</string>
+    <string name="read_aloud_play">تشغيل</string>
+    <string name="read_aloud_pause">إيقاف مؤقت</string>
+    <string name="read_aloud_stop">إيقاف القراءة</string>
+    <string name="read_aloud_previous">الجملة السابقة</string>
+    <string name="read_aloud_next">الجملة التالية</string>
+    <string name="read_aloud_speed_value">سرعة القراءة %1$s</string>
+    <string name="read_aloud_status">الجملة %1$s من %2$s</string>
+    <string name="read_aloud_status_paused">%1$s · متوقّف مؤقتاً</string>
 </resources>

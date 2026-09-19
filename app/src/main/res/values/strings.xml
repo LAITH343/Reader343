@@ -440,4 +440,15 @@
         <item quantity="one">%1$s book with an unconfirmed match</item>
         <item quantity="other">%1$s books with an unconfirmed match</item>
     </plurals>
+    <string name="read_aloud_channel_name">Read aloud</string>
+    <string name="read_aloud_channel_description">Playback controls while a book is read aloud</string>
+    <string name="read_aloud_notification_tag">Read aloud</string>
+    <string name="read_aloud_play">Play</string>
+    <string name="read_aloud_pause">Pause</string>
+    <string name="read_aloud_stop">Stop reading</string>
+    <string name="read_aloud_previous">Previous sentence</string>
+    <string name="read_aloud_next">Next sentence</string>
+    <string name="read_aloud_speed_value">Reading speed %1$s</string>
+    <string name="read_aloud_status">Sentence %1$s of %2$s</string>
+    <string name="read_aloud_status_paused">%1$s · Paused</string>
 </resources>

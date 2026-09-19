@@ -5,7 +5,6 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.content.res.Configuration
 import android.os.Build
 import androidx.core.app.NotificationChannelCompat
 import androidx.core.app.NotificationCompat
@@ -15,9 +14,9 @@ import androidx.core.text.BidiFormatter
 import com.reader343.MainActivity
 import com.reader343.R
 import com.reader343.domain.AppLanguage
+import com.reader343.ui.settings.localizedFor
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.text.NumberFormat
-import java.util.Locale
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -29,7 +28,7 @@ class ReminderNotifier @Inject constructor(
     private val manager: NotificationManagerCompat get() = NotificationManagerCompat.from(context)
 
     fun ensureChannel(language: AppLanguage) {
-        val context = localized(language)
+        val context = context.localizedFor(language)
         val channel = NotificationChannelCompat.Builder(CHANNEL_ID, NotificationManagerCompat.IMPORTANCE_DEFAULT)
             .setName(context.getString(R.string.reminder_channel_name))
             .setDescription(context.getString(R.string.reminder_channel_description))
@@ -38,7 +37,7 @@ class ReminderNotifier @Inject constructor(
     }
 
     fun showReading(language: AppLanguage, bookTitle: String?) {
-        val context = localized(language)
+        val context = context.localizedFor(language)
         val body = if (bookTitle != null) {
             context.getString(
                 R.string.reminder_reading_body_book,
@@ -51,7 +50,7 @@ class ReminderNotifier @Inject constructor(
     }
 
     fun showStreak(language: AppLanguage, days: Int) {
-        val context = localized(language)
+        val context = context.localizedFor(language)
         val count = NumberFormat.getIntegerInstance(context.resources.configuration.locales[0]).format(days)
         post(
             language,
@@ -59,12 +58,6 @@ class ReminderNotifier @Inject constructor(
             context.resources.getQuantityString(R.plurals.reminder_streak_title, days, count),
             context.getString(R.string.reminder_streak_body),
         )
-    }
-
-    private fun localized(language: AppLanguage): Context {
-        if (language == AppLanguage.System || Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) return context
-        val config = Configuration(context.resources.configuration).apply { setLocale(Locale.forLanguageTag(language.tag)) }
-        return context.createConfigurationContext(config)
     }
 
     private fun post(language: AppLanguage, type: ReminderType, title: String, body: String) {

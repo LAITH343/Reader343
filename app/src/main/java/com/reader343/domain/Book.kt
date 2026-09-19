@@ -7,4 +7,5 @@ data class Book(
     val pageCount: Int,
     val lastPage: Int,
     val hasTextLayer: Boolean?,
+    val coverPath: String? = null,
 )
