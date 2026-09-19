@@ -5,10 +5,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -22,7 +19,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -57,9 +53,6 @@ import com.reader343.domain.BookWithProgress
 import com.reader343.domain.DailyGoal
 import com.reader343.domain.GoalUnit
 import com.reader343.domain.LibraryFilter
-import com.reader343.domain.WeekDay
-import com.reader343.domain.WeekDayState
-import com.reader343.domain.weekProgress
 import com.reader343.ui.components.AppCard
 import com.reader343.ui.components.BookCover
 import com.reader343.ui.components.ErrorState
@@ -85,7 +78,6 @@ import com.reader343.ui.theme.appColors
 import com.reader343.ui.settings.DailyGoalSheetHost
 import com.reader343.ui.theme.appShapes
 import com.reader343.ui.theme.appType
-import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.format.TextStyle
 
@@ -378,7 +370,6 @@ private fun ResumeCard(
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun GoalCard(
     stats: HomeStats,
@@ -393,137 +384,110 @@ private fun GoalCard(
         GoalUnit.Pages -> pluralStringResource(R.plurals.stats_pages_value, stats.todayPages, formatNumber(stats.todayPages))
     }
     AppCard(modifier = modifier.fillMaxWidth(), shape = MaterialTheme.appShapes.card) {
-        Column(
+        Row(
             modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(16.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                if (goal.enabled) {
-                    val progress = goalProgress(stats)
-                    val percent = formatPercent(progress)
-                    GoalRing(progress = progress, pulse = progress < 1f) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text(text = percent, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = colors.ink)
-                            Text(text = stringResource(R.string.home_of_goal), style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp), fontWeight = FontWeight.Normal, color = colors.ink3)
-                        }
-                    }
-                } else {
-                    GoalRing(progress = 0f) {
-                        Icon(
-                            painter = painterResource(R.drawable.ic_ph_target),
-                            contentDescription = null,
-                            tint = colors.accLt,
-                            modifier = Modifier.size(26.dp),
-                        )
+            val progress = goalProgress(stats)
+            if (goal.enabled) {
+                val percent = formatPercent(progress)
+                GoalRing(progress = progress, pulse = progress < 1f) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(text = percent, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = colors.ink)
+                        Text(text = stringResource(R.string.home_of_goal), style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp), fontWeight = FontWeight.Normal, color = colors.ink3)
                     }
                 }
-                Column(
-                    modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(6.dp),
-                ) {
-                    Column(
-                        modifier = Modifier.semantics(mergeDescendants = true) {},
-                        verticalArrangement = Arrangement.spacedBy(6.dp),
-                    ) {
-                        Text(
-                            text = if (goal.enabled) {
-                                stringResource(R.string.home_today_of_goal, today, goalTarget(goal))
-                            } else {
-                                stringResource(R.string.home_today_amount, today)
-                            },
-                            style = MaterialTheme.typography.titleSmall,
-                            color = colors.ink,
-                        )
-                        Text(
-                            text = goalMessage(stats),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = colors.ink3,
-                        )
-                    }
-                    if (!goal.enabled) {
-                        GhostButton(
-                            text = stringResource(R.string.home_set_goal),
-                            onClick = onSetGoal,
-                            icon = R.drawable.ic_ph_target,
-                        )
-                    }
-                    FlowRow(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        Pill(
-                            text = pluralStringResource(R.plurals.home_streak, stats.streakDays, formatNumber(stats.streakDays)),
-                            tone = PillTone.Accent,
-                            icon = R.drawable.ic_ph_flame_fill,
-                        )
-                        Pill(
-                            text = pluralStringResource(R.plurals.home_in_progress, inProgress, formatNumber(inProgress)),
-                            tone = PillTone.Neutral,
-                            icon = R.drawable.ic_ph_books,
-                        )
-                    }
+            } else {
+                GoalRing(progress = 0f) {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_ph_target),
+                        contentDescription = null,
+                        tint = colors.accLt,
+                        modifier = Modifier.size(26.dp),
+                    )
                 }
             }
-            HorizontalDivider(color = colors.line)
-            WeekStrip(week = stats.week)
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalAlignment = Alignment.Top,
+                ) {
+                    Text(
+                        text = if (goal.enabled) {
+                            stringResource(R.string.home_today_of_goal, today, goalTarget(goal))
+                        } else {
+                            stringResource(R.string.home_today_amount, today)
+                        },
+                        style = MaterialTheme.typography.titleSmall,
+                        color = colors.ink,
+                        modifier = Modifier.weight(1f),
+                    )
+                    if (goal.enabled && stats.streakDays > 0) {
+                        StreakChip(days = stats.streakDays, metToday = progress >= 1f)
+                    }
+                }
+                Text(
+                    text = goalMessage(stats),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = colors.ink3,
+                )
+                if (!goal.enabled) {
+                    GhostButton(
+                        text = stringResource(R.string.home_set_goal),
+                        onClick = onSetGoal,
+                        icon = R.drawable.ic_ph_target,
+                    )
+                }
+                Pill(
+                    text = pluralStringResource(R.plurals.home_in_progress, inProgress, formatNumber(inProgress)),
+                    tone = PillTone.Neutral,
+                    icon = R.drawable.ic_ph_books,
+                )
+            }
         }
     }
 }
 
 @Composable
-private fun WeekStrip(week: List<WeekDay>) {
-    val description = week.map { day ->
-        val name = formatWeekday(day.date, TextStyle.FULL)
-        when (day.state) {
-            WeekDayState.Met -> stringResource(R.string.home_week_met, name)
-            WeekDayState.Today -> stringResource(R.string.home_week_today, name)
-            WeekDayState.Missed -> stringResource(R.string.home_week_missed, name)
-            WeekDayState.Future -> stringResource(R.string.home_week_future, name)
-        }
-    }.joinToString("; ")
+private fun StreakChip(days: Int, metToday: Boolean) {
+    val colors = MaterialTheme.appColors
+    val shape = MaterialTheme.appShapes.pill
+    val (container, border, content) = if (metToday) {
+        Triple(colors.accTint22, colors.accMid, colors.accTx)
+    } else {
+        Triple(colors.surf2, colors.line2, colors.ink3)
+    }
+    val description = pluralStringResource(
+        if (metToday) R.plurals.home_streak_met else R.plurals.home_streak_pending,
+        days,
+        formatNumber(days),
+    )
     Row(
         modifier = Modifier
-            .fillMaxWidth()
+            .height(28.dp)
+            .background(container, shape)
+            .border(1.dp, border, shape)
+            .padding(horizontal = 11.dp)
             .semantics(mergeDescendants = true) { contentDescription = description },
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        horizontalArrangement = Arrangement.spacedBy(5.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        week.forEach { day ->
-            WeekCell(day = day, modifier = Modifier.weight(1f))
-        }
-    }
-}
-
-@Composable
-private fun WeekCell(day: WeekDay, modifier: Modifier = Modifier) {
-    val colors = MaterialTheme.appColors
-    val shape = MaterialTheme.appShapes.tile
-    val (container, border, icon) = when (day.state) {
-        WeekDayState.Met -> Triple(colors.accTint22, colors.accMid, R.drawable.ic_ph_check_fill)
-        WeekDayState.Today -> Triple(colors.acc, colors.accMid, R.drawable.ic_ph_flame_fill)
-        WeekDayState.Missed, WeekDayState.Future -> Triple(colors.surf, colors.line, R.drawable.ic_ph_minus)
-    }
-    Column(
-        modifier = modifier,
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(6.dp),
-    ) {
-        Text(
-            text = formatWeekday(day.date, TextStyle.NARROW),
-            style = MaterialTheme.typography.labelSmall,
-            color = if (day.state == WeekDayState.Today) colors.accTx else colors.ink3,
+        Icon(
+            painter = painterResource(R.drawable.ic_ph_flame_fill),
+            contentDescription = null,
+            tint = content,
+            modifier = Modifier.size(15.dp),
         )
-        Box(
-            modifier = Modifier
-                .size(28.dp)
-                .background(container, shape)
-                .border(1.dp, border, shape),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(painter = painterResource(icon), contentDescription = null, tint = colors.ink, modifier = Modifier.size(13.dp))
-        }
+        Text(
+            text = formatNumber(days),
+            style = MaterialTheme.typography.bodyMedium.copy(lineHeight = 14.sp),
+            fontWeight = FontWeight.Bold,
+            color = content,
+        )
     }
 }
 
@@ -563,12 +527,11 @@ internal const val PDF_MIME = "application/pdf"
 internal val ScreenPadding = 20.dp
 private const val MINUTE_MS = 60_000L
 
-private fun previewStats(goal: DailyGoal) = HomeStats(
-    streakDays = 6,
-    todayMs = 12 * MINUTE_MS,
+private fun previewStats(goal: DailyGoal, todayMinutes: Long = 12) = HomeStats(
+    streakDays = if (goal.enabled) 6 else 0,
+    todayMs = todayMinutes * MINUTE_MS,
     todayPages = 11,
     goal = goal,
-    week = weekProgress(emptyList(), goal, LocalDate.now()),
 )
 
 @Preview(showBackground = true, heightDp = 1000)
@@ -591,6 +554,29 @@ private fun HomePreview() {
             onSetGoal = {},
             onRetry = {},
             updateVersion = "1.1",
+        )
+    }
+}
+
+@Preview(showBackground = true, heightDp = 1000)
+@Composable
+private fun HomeGoalMetLightPreview() {
+    Reader343Theme(darkTheme = false) {
+        HomeScreen(
+            state = LibraryUiState.Content(
+                books = PreviewBooks,
+                continueBook = PreviewBooks.first(),
+                stats = previewStats(DailyGoal(GoalUnit.Minutes, 15), todayMinutes = 18),
+                filter = LibraryFilter.Reading,
+            ),
+            importing = false,
+            snackbarHostState = remember { SnackbarHostState() },
+            onImport = {},
+            onOpenBook = {},
+            onOpenMenu = {},
+            onOpenLibrary = {},
+            onSetGoal = {},
+            onRetry = {},
         )
     }
 }

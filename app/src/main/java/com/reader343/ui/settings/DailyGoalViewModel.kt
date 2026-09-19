@@ -17,6 +17,7 @@ import javax.inject.Inject
 data class DailyGoalUiState(
     val goal: DailyGoal,
     val context: GoalContext,
+    val streakDays: Int,
 )
 
 @HiltViewModel
@@ -28,7 +29,8 @@ class DailyGoalViewModel @Inject constructor(
     val uiState: StateFlow<DailyGoalUiState?> = combine(
         repository.settings,
         statsRepository.observeGoalContext(),
-    ) { settings, context -> DailyGoalUiState(settings.goal, context) }
+        statsRepository.observeStreakDays(),
+    ) { settings, context, streakDays -> DailyGoalUiState(settings.goal, context, streakDays) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     fun save(goal: DailyGoal) {

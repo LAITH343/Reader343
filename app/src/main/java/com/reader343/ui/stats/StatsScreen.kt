@@ -239,7 +239,13 @@ private fun StreakHero(stats: ReadingStats, modifier: Modifier = Modifier) {
             R.string.stats_best_streak,
             pluralStringResource(R.plurals.stats_days, stats.bestStreakDays, formatNumber(stats.bestStreakDays)),
         ),
-        stringResource(if (stats.readToday) R.string.stats_read_today else R.string.stats_not_read_today),
+        stringResource(
+            when {
+                !stats.goalSet -> R.string.stats_no_goal
+                stats.goalMetToday -> R.string.stats_goal_met_today
+                else -> R.string.stats_goal_not_met_today
+            },
+        ),
     )
     HeroCard(
         modifier = modifier,
@@ -269,7 +275,11 @@ private fun StreakHero(stats: ReadingStats, modifier: Modifier = Modifier) {
             }
             Column {
                 Text(
-                    text = pluralStringResource(R.plurals.stats_streak_value, stats.streakDays, formatNumber(stats.streakDays)),
+                    text = if (stats.goalSet && stats.streakDays > 0) {
+                        pluralStringResource(R.plurals.stats_streak_value, stats.streakDays, formatNumber(stats.streakDays))
+                    } else {
+                        stringResource(R.string.stats_no_streak)
+                    },
                     style = MaterialTheme.typography.displayMedium.copy(lineHeight = 1.1.em),
                     color = colors.ink,
                 )
@@ -278,7 +288,7 @@ private fun StreakHero(stats: ReadingStats, modifier: Modifier = Modifier) {
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(text = detail, style = MaterialTheme.typography.bodySmall, color = colors.ink2)
-                    if (stats.readToday) {
+                    if (stats.goalSet && stats.goalMetToday) {
                         Icon(
                             painter = painterResource(R.drawable.ic_ph_check),
                             contentDescription = null,
@@ -708,7 +718,8 @@ private fun previewState(metric: ChartMetric = ChartMetric.Time): StatsUiState.C
         stats = ReadingStats(
             streakDays = 6,
             bestStreakDays = 11,
-            readToday = true,
+            goalSet = true,
+            goalMetToday = true,
             totalTimeMs = 22_320_000L,
             booksInProgress = 3,
             sessionCount = 34,

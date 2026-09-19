@@ -46,5 +46,6 @@ data class AppSettings(
     val pageAppearance: PageAppearance = PageAppearance.Normal,
     val language: AppLanguage = AppLanguage.System,
     val goal: DailyGoal = DailyGoal(),
+    val goalHistory: List<GoalChange> = emptyList(),
     val reminders: ReminderSettings = ReminderSettings(),
 )

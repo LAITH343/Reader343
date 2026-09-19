@@ -88,8 +88,10 @@
     </plurals>
     <string name="stats_best_streak">Best: %1$s</string>
     <string name="stats_streak_detail">%1$s · %2$s</string>
-    <string name="stats_read_today">read today</string>
-    <string name="stats_not_read_today">not yet today</string>
+    <string name="stats_no_streak">No streak yet</string>
+    <string name="stats_goal_met_today">goal met today</string>
+    <string name="stats_goal_not_met_today">goal not met yet</string>
+    <string name="stats_no_goal">no daily goal</string>
     <string name="stats_goal_hit_rate">Goal hit rate</string>
     <string name="stats_value_none">—</string>
     <string name="stats_avg">Avg</string>
@@ -137,7 +139,7 @@
     <string name="settings_daily_reminder">Daily reminder</string>
     <string name="settings_daily_reminder_hint">A nudge at your usual reading hour</string>
     <string name="settings_streak_alert">Streak alert</string>
-    <string name="settings_streak_alert_hint">Evening ping only if you haven\'t read yet</string>
+    <string name="settings_streak_alert_hint">Evening ping only if today\'s goal isn\'t met yet</string>
     <string name="settings_reminder_time">Reminder time</string>
     <string name="settings_reminder_time_hint">A nudge at %1$s, streak alert at %2$s</string>
     <string name="settings_reminder_time_change">Change reminder time</string>
@@ -145,6 +147,11 @@
     <string name="settings_about_offline">Offline library. No account.</string>
     <string name="goal_sheet_subtitle">Small and repeatable beats ambitious and skipped.</string>
     <string name="goal_sheet_turn_off">Turn off</string>
+    <string name="goal_off_title">Turn off daily goal?</string>
+    <plurals name="goal_off_message">
+        <item quantity="one">Without a goal there is no streak. Your %1$s-day streak will be lost and starts again from zero.</item>
+        <item quantity="other">Without a goal there is no streak. Your %1$s-day streak will be lost and starts again from zero.</item>
+    </plurals>
     <string name="goal_sheet_decrease">Decrease goal</string>
     <string name="goal_sheet_increase">Increase goal</string>
     <string name="goal_sheet_save">Save goal</string>
@@ -173,7 +180,7 @@
         <item quantity="one">Keep your %1$s-day streak alive</item>
         <item quantity="other">Keep your %1$s-day streak alive</item>
     </plurals>
-    <string name="reminder_streak_body">You haven\'t read today yet. A few pages will do.</string>
+    <string name="reminder_streak_body">You haven\'t met today\'s goal yet. A little more reading will do.</string>
     <string name="notifications_rationale_title">Allow notifications?</string>
     <string name="notifications_rationale">Reader343 uses notifications only to deliver the reading and streak reminders you set here.</string>
     <string name="notifications_denied">Reminders need notification access</string>
@@ -207,20 +214,20 @@
         <item quantity="other">%1$s more pages keeps the streak alive.</item>
     </plurals>
     <string name="home_goal_met">Goal met — anything more is a bonus.</string>
-    <string name="home_goal_none">Pick a small daily target to build the habit.</string>
+    <string name="home_goal_none">Set a daily goal to start a streak.</string>
     <string name="home_set_goal">Set a daily goal</string>
-    <plurals name="home_streak">
-        <item quantity="one">%1$s-day streak</item>
-        <item quantity="other">%1$s-day streak</item>
+    <plurals name="home_streak_met">
+        <item quantity="one">%1$s-day streak, today\'s goal met</item>
+        <item quantity="other">%1$s-day streak, today\'s goal met</item>
+    </plurals>
+    <plurals name="home_streak_pending">
+        <item quantity="one">%1$s-day streak, today\'s goal not met yet</item>
+        <item quantity="other">%1$s-day streak, today\'s goal not met yet</item>
     </plurals>
     <plurals name="home_in_progress">
         <item quantity="one">%1$s in progress</item>
         <item quantity="other">%1$s in progress</item>
     </plurals>
-    <string name="home_week_met">%1$s, done</string>
-    <string name="home_week_today">%1$s, today</string>
-    <string name="home_week_missed">%1$s, missed</string>
-    <string name="home_week_future">%1$s, upcoming</string>
     <string name="home_shelf">Your shelf</string>
     <string name="home_see_all">See all %1$s</string>
     <string name="library_import_short">Import</string>

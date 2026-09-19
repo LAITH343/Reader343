@@ -51,7 +51,7 @@ class ReminderWorker @AssistedInject constructor(
             ReminderType.Reading -> notifier.showReading(language, libraryRepository.continueBook()?.title)
             ReminderType.Streak -> {
                 val streak = statsRepository.streakSnapshot()
-                if (!streak.readToday && streak.days > 0) notifier.showStreak(language, streak.days)
+                if (!streak.goalMetToday && streak.days > 0) notifier.showStreak(language, streak.days)
             }
         }
     }

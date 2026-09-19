@@ -13,10 +13,12 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -45,6 +47,7 @@ import com.reader343.domain.DailyGoal
 import com.reader343.domain.GoalContext
 import com.reader343.domain.GoalUnit
 import com.reader343.ui.components.AppBottomSheet
+import com.reader343.ui.components.DestructiveTextButton
 import com.reader343.ui.components.GhostButton
 import com.reader343.ui.components.PrimaryButton
 import com.reader343.ui.components.SecondaryButton
@@ -80,6 +83,7 @@ fun DailyGoalSheetHost(
         DailyGoalSheetContent(
             goal = current.goal,
             context = current.context,
+            streakDays = current.streakDays,
             onSave = {
                 viewModel.save(it)
                 close()
@@ -93,10 +97,12 @@ fun DailyGoalSheetHost(
 fun DailyGoalSheetContent(
     goal: DailyGoal,
     context: GoalContext,
+    streakDays: Int,
     onSave: (DailyGoal) -> Unit,
     onCancel: () -> Unit,
 ) {
     val colors = MaterialTheme.appColors
+    var confirmOff by rememberSaveable { mutableStateOf(false) }
     var unit by rememberSaveable { mutableStateOf(goal.unit) }
     var value by rememberSaveable { mutableIntStateOf(if (goal.enabled) goal.value else defaultGoal(goal.unit)) }
     val max = maxGoal(unit)
@@ -125,7 +131,9 @@ fun DailyGoalSheetContent(
             if (goal.enabled) {
                 GhostButton(
                     text = stringResource(R.string.goal_sheet_turn_off),
-                    onClick = { onSave(DailyGoal(goal.unit, 0)) },
+                    onClick = {
+                        if (streakDays > 0) confirmOff = true else onSave(DailyGoal(goal.unit, 0))
+                    },
                 )
             }
         }
@@ -215,6 +223,37 @@ fun DailyGoalSheetContent(
             )
         }
     }
+
+    if (confirmOff) {
+        TurnOffGoalDialog(
+            streakDays = streakDays,
+            onConfirm = {
+                confirmOff = false
+                onSave(DailyGoal(goal.unit, 0))
+            },
+            onDismiss = { confirmOff = false },
+        )
+    }
+}
+
+@Composable
+private fun TurnOffGoalDialog(
+    streakDays: Int,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        icon = { Icon(painterResource(R.drawable.ic_ph_flame_fill), contentDescription = null) },
+        title = { Text(stringResource(R.string.goal_off_title)) },
+        text = { Text(pluralStringResource(R.plurals.goal_off_message, streakDays, formatNumber(streakDays))) },
+        confirmButton = {
+            DestructiveTextButton(text = stringResource(R.string.goal_sheet_turn_off), onClick = onConfirm)
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) }
+        },
+    )
 }
 
 @Composable
@@ -310,8 +349,17 @@ private fun DailyGoalSheetPreview() {
         DailyGoalSheetContent(
             goal = DailyGoal(GoalUnit.Minutes, 15),
             context = GoalContext(metLastWeek = 5, avgSessionMs = 22 * MINUTE_MS, pagesPerDay = 15),
+            streakDays = 6,
             onSave = {},
             onCancel = {},
         )
+    }
+}
+
+@Preview
+@Composable
+private fun TurnOffGoalDialogPreview() {
+    Reader343Theme {
+        TurnOffGoalDialog(streakDays = 6, onConfirm = {}, onDismiss = {})
     }
 }

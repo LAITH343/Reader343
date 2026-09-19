@@ -13,10 +13,8 @@ import com.reader343.domain.BookWithProgress
 import com.reader343.domain.DailyGoal
 import com.reader343.domain.LibraryFilter
 import com.reader343.domain.ReadingStats
-import com.reader343.domain.WeekDay
 import com.reader343.domain.continueCandidate
 import com.reader343.domain.filteredBy
-import com.reader343.domain.weekProgress
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.Channel
@@ -57,7 +55,6 @@ data class HomeStats(
     val todayMs: Long,
     val todayPages: Int,
     val goal: DailyGoal,
-    val week: List<WeekDay>,
 )
 
 sealed interface LibraryEvent {
@@ -133,7 +130,6 @@ class LibraryViewModel @Inject constructor(
             todayMs = day?.timeMs ?: 0L,
             todayPages = day?.pages ?: 0,
             goal = goal,
-            week = weekProgress(days, goal, today),
         )
     }
 

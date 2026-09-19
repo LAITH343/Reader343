@@ -5,7 +5,8 @@ import java.time.LocalDate
 data class ReadingStats(
     val streakDays: Int,
     val bestStreakDays: Int,
-    val readToday: Boolean,
+    val goalSet: Boolean,
+    val goalMetToday: Boolean,
     val totalTimeMs: Long,
     val booksInProgress: Int,
     val sessionCount: Int,
@@ -35,7 +36,7 @@ data class BookStats(
 
 data class StreakSnapshot(
     val days: Int,
-    val readToday: Boolean,
+    val goalMetToday: Boolean,
 )
 
 enum class ActivityMetric { Minutes, Pages }

@@ -28,26 +28,27 @@ fun dailyStats(sessions: List<ReadingSession>, zone: ZoneId): Map<LocalDate, Day
             )
         }
 
-fun currentStreak(activeDays: Set<LocalDate>, today: LocalDate): Int {
+fun currentStreak(activeDays: Set<LocalDate>, today: LocalDate, breaks: Set<LocalDate> = emptySet()): Int {
     var day = when {
         today in activeDays -> today
-        today.minusDays(1) in activeDays -> today.minusDays(1)
+        today !in breaks && today.minusDays(1) in activeDays -> today.minusDays(1)
         else -> return 0
     }
     var count = 0
     while (day in activeDays) {
         count++
+        if (day in breaks) break
         day = day.minusDays(1)
     }
     return count
 }
 
-fun bestStreakDays(activeDays: Set<LocalDate>): Int {
+fun bestStreakDays(activeDays: Set<LocalDate>, breaks: Set<LocalDate> = emptySet()): Int {
     var best = 0
     var run = 0
     var previous: LocalDate? = null
     for (day in activeDays.sorted()) {
-        run = if (previous != null && previous.plusDays(1) == day) run + 1 else 1
+        run = if (previous != null && previous.plusDays(1) == day && day !in breaks) run + 1 else 1
         best = maxOf(best, run)
         previous = day
     }

@@ -8,6 +8,7 @@ import com.reader343.domain.ActivityMetric
 import com.reader343.domain.BookStats
 import com.reader343.domain.DailyGoal
 import com.reader343.domain.DayStats
+import com.reader343.domain.GoalChange
 import com.reader343.domain.GoalContext
 import com.reader343.domain.ReadingSession
 import com.reader343.domain.ReadingStats
@@ -17,12 +18,15 @@ import com.reader343.domain.currentStreak
 import com.reader343.domain.dailyStats
 import com.reader343.domain.goalContext
 import com.reader343.domain.goalHitRate
+import com.reader343.domain.goalMetDays
+import com.reader343.domain.streakBreaks
 import com.reader343.domain.strongestSlot
 import com.reader343.domain.toLocalDate
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
@@ -42,10 +46,10 @@ class StatsRepository @Inject constructor(
         combine(
             bookDao.observeWithProgress(),
             sessionDao.observeFinished(),
-            settingsRepository.settings.map { it.goal }.distinctUntilChanged(),
-        ) { books, sessions, goal ->
+            settingsRepository.settings.map { it.goal to it.goalHistory }.distinctUntilChanged(),
+        ) { books, sessions, (goal, history) ->
             val zone = ZoneId.systemDefault()
-            compute(books, sessions.map { it.toDomain() }, goal, LocalDate.now(zone), zone)
+            compute(books, sessions.map { it.toDomain() }, goal, history, LocalDate.now(zone), zone)
         }.flowOn(Dispatchers.Default)
 
     fun observeGoalContext(): Flow<GoalContext> =
@@ -57,17 +61,34 @@ class StatsRepository @Inject constructor(
             goalContext(sessions.map { it.toDomain() }, goal, LocalDate.now(zone), zone)
         }.flowOn(Dispatchers.Default)
 
+    fun observeStreakDays(): Flow<Int> =
+        combine(sessionDao.observeFinished(), settingsRepository.settings) { sessions, settings ->
+            val zone = ZoneId.systemDefault()
+            val metDays = goalMetDays(dailyStats(sessions.map { it.toDomain() }, zone), settings.goalHistory)
+            streakDays(metDays, settings.goal, settings.goalHistory, LocalDate.now(zone))
+        }.distinctUntilChanged().flowOn(Dispatchers.Default)
+
     fun observeDailyActivity(metric: ActivityMetric): Flow<Map<LocalDate, Int>> =
         sessionDao.observeFinished()
             .map { sessions -> dailyActivity(sessions.map { it.toDomain() }, metric, ZoneId.systemDefault()) }
             .flowOn(Dispatchers.Default)
 
-    suspend fun streakSnapshot(): StreakSnapshot = withContext(Dispatchers.Default) {
-        val zone = ZoneId.systemDefault()
-        val today = LocalDate.now(zone)
-        val activeDays = sessionDao.finishedStartTimes().mapTo(HashSet()) { it.toLocalDate(zone) }
-        StreakSnapshot(days = currentStreak(activeDays, today), readToday = today in activeDays)
+    suspend fun streakSnapshot(): StreakSnapshot {
+        val sessions = sessionDao.finished()
+        val settings = settingsRepository.settings.first()
+        return withContext(Dispatchers.Default) {
+            val zone = ZoneId.systemDefault()
+            val today = LocalDate.now(zone)
+            val metDays = goalMetDays(dailyStats(sessions.map { it.toDomain() }, zone), settings.goalHistory)
+            StreakSnapshot(
+                days = streakDays(metDays, settings.goal, settings.goalHistory, today),
+                goalMetToday = today in metDays,
+            )
+        }
     }
+
+    private fun streakDays(metDays: Set<LocalDate>, goal: DailyGoal, history: List<GoalChange>, today: LocalDate): Int =
+        if (goal.enabled) currentStreak(metDays, today, history.streakBreaks()) else 0
 
     private fun dailyActivity(
         sessions: List<ReadingSession>,
@@ -88,6 +109,7 @@ class StatsRepository @Inject constructor(
         books: List<BookWithProgressRow>,
         sessions: List<ReadingSession>,
         goal: DailyGoal,
+        history: List<GoalChange>,
         today: LocalDate,
         zone: ZoneId,
     ): ReadingStats {
@@ -97,6 +119,7 @@ class StatsRepository @Inject constructor(
         val windowSessions = sessions.filter { !it.startTs.toLocalDate(zone).isBefore(windowStart) }
         val windowDays = byDay.values.filter { !it.date.isBefore(windowStart) }
         val windowTime = windowSessions.sumOf { it.durationMs }
+        val metDays = goalMetDays(byDay, history)
 
         val bookStats = books.mapNotNull { row ->
             val bookSessions = byBook[row.book.id].orEmpty()
@@ -121,9 +144,10 @@ class StatsRepository @Inject constructor(
         }
 
         return ReadingStats(
-            streakDays = currentStreak(byDay.keys, today),
-            bestStreakDays = bestStreakDays(byDay.keys),
-            readToday = today in byDay,
+            streakDays = streakDays(metDays, goal, history, today),
+            bestStreakDays = bestStreakDays(metDays, history.streakBreaks()),
+            goalSet = goal.enabled,
+            goalMetToday = today in metDays,
             totalTimeMs = windowTime,
             booksInProgress = books.count { row ->
                 row.progress?.let { it.updatedAt > 0L && it.finishedAt == null } == true

@@ -119,8 +119,10 @@
     </plurals>
     <string name="stats_best_streak">الأفضل: %1$s</string>
     <string name="stats_streak_detail">%1$s · %2$s</string>
-    <string name="stats_read_today">قرأت اليوم</string>
-    <string name="stats_not_read_today">لم تقرأ اليوم بعد</string>
+    <string name="stats_no_streak">لا توجد سلسلة بعد</string>
+    <string name="stats_goal_met_today">تحقق هدف اليوم</string>
+    <string name="stats_goal_not_met_today">لم يتحقق الهدف بعد</string>
+    <string name="stats_no_goal">لا يوجد هدف يومي</string>
     <string name="stats_goal_hit_rate">نسبة تحقيق الهدف</string>
     <string name="stats_value_none">—</string>
     <string name="stats_avg">المتوسط</string>
@@ -170,7 +172,7 @@
     <string name="settings_daily_reminder">تذكير يومي</string>
     <string name="settings_daily_reminder_hint">تنبيه في موعد قراءتك المعتاد</string>
     <string name="settings_streak_alert">تنبيه السلسلة</string>
-    <string name="settings_streak_alert_hint">تنبيه مسائي فقط إن لم تقرأ بعد</string>
+    <string name="settings_streak_alert_hint">تنبيه مسائي فقط إن لم يتحقق هدف اليوم بعد</string>
     <string name="settings_reminder_time">وقت التذكير</string>
     <string name="settings_reminder_time_hint">تنبيه عند %1$s، وتنبيه السلسلة عند %2$s</string>
     <string name="settings_reminder_time_change">تغيير وقت التذكير</string>
@@ -178,6 +180,15 @@
     <string name="settings_about_offline">مكتبة دون اتصال. بلا حساب.</string>
     <string name="goal_sheet_subtitle">هدف صغير تلتزم به خير من هدف كبير تتركه.</string>
     <string name="goal_sheet_turn_off">إيقاف</string>
+    <string name="goal_off_title">إيقاف الهدف اليومي؟</string>
+    <plurals name="goal_off_message">
+        <item quantity="zero">بدون هدف لا توجد سلسلة. ستفقد سلسلة %1$s يوم وتبدأ من الصفر.</item>
+        <item quantity="one">بدون هدف لا توجد سلسلة. ستفقد سلسلة يوم واحد وتبدأ من الصفر.</item>
+        <item quantity="two">بدون هدف لا توجد سلسلة. ستفقد سلسلة يومين وتبدأ من الصفر.</item>
+        <item quantity="few">بدون هدف لا توجد سلسلة. ستفقد سلسلة %1$s أيام وتبدأ من الصفر.</item>
+        <item quantity="many">بدون هدف لا توجد سلسلة. ستفقد سلسلة %1$s يومًا وتبدأ من الصفر.</item>
+        <item quantity="other">بدون هدف لا توجد سلسلة. ستفقد سلسلة %1$s يوم وتبدأ من الصفر.</item>
+    </plurals>
     <string name="goal_sheet_decrease">تقليل الهدف</string>
     <string name="goal_sheet_increase">زيادة الهدف</string>
     <string name="goal_sheet_save">حفظ الهدف</string>
@@ -222,7 +233,7 @@
         <item quantity="many">حافظ على سلسلة %1$s يومًا</item>
         <item quantity="other">حافظ على سلسلة %1$s يوم</item>
     </plurals>
-    <string name="reminder_streak_body">لم تقرأ اليوم بعد. بضع صفحات تكفي.</string>
+    <string name="reminder_streak_body">لم تحقق هدف اليوم بعد. قليل من القراءة يكفي.</string>
     <string name="notifications_rationale_title">السماح بالإشعارات؟</string>
     <string name="notifications_rationale">يستخدم Reader343 الإشعارات فقط لإيصال تذكيرات القراءة والسلسلة التي تضبطها هنا.</string>
     <string name="notifications_denied">تحتاج التذكيرات إلى إذن الإشعارات</string>
@@ -264,15 +275,23 @@
         <item quantity="other">%1$s صفحة إضافية تحافظ على سلسلتك.</item>
     </plurals>
     <string name="home_goal_met">تحقق الهدف — أي قراءة إضافية مكسب.</string>
-    <string name="home_goal_none">اختر هدفًا يوميًا صغيرًا لبناء العادة.</string>
+    <string name="home_goal_none">حدّد هدفًا يوميًا لتبدأ سلسلتك.</string>
     <string name="home_set_goal">حدّد هدفًا يوميًا</string>
-    <plurals name="home_streak">
-        <item quantity="zero">سلسلة %1$s يوم</item>
-        <item quantity="one">سلسلة يوم واحد</item>
-        <item quantity="two">سلسلة يومين</item>
-        <item quantity="few">سلسلة %1$s أيام</item>
-        <item quantity="many">سلسلة %1$s يومًا</item>
-        <item quantity="other">سلسلة %1$s يوم</item>
+    <plurals name="home_streak_met">
+        <item quantity="zero">سلسلة %1$s يوم، تحقق هدف اليوم</item>
+        <item quantity="one">سلسلة يوم واحد، تحقق هدف اليوم</item>
+        <item quantity="two">سلسلة يومين، تحقق هدف اليوم</item>
+        <item quantity="few">سلسلة %1$s أيام، تحقق هدف اليوم</item>
+        <item quantity="many">سلسلة %1$s يومًا، تحقق هدف اليوم</item>
+        <item quantity="other">سلسلة %1$s يوم، تحقق هدف اليوم</item>
+    </plurals>
+    <plurals name="home_streak_pending">
+        <item quantity="zero">سلسلة %1$s يوم، لم يتحقق هدف اليوم بعد</item>
+        <item quantity="one">سلسلة يوم واحد، لم يتحقق هدف اليوم بعد</item>
+        <item quantity="two">سلسلة يومين، لم يتحقق هدف اليوم بعد</item>
+        <item quantity="few">سلسلة %1$s أيام، لم يتحقق هدف اليوم بعد</item>
+        <item quantity="many">سلسلة %1$s يومًا، لم يتحقق هدف اليوم بعد</item>
+        <item quantity="other">سلسلة %1$s يوم، لم يتحقق هدف اليوم بعد</item>
     </plurals>
     <plurals name="home_in_progress">
         <item quantity="zero">%1$s قيد القراءة</item>
@@ -282,10 +301,6 @@
         <item quantity="many">%1$s كتابًا قيد القراءة</item>
         <item quantity="other">%1$s كتاب قيد القراءة</item>
     </plurals>
-    <string name="home_week_met">%1$s، تم</string>
-    <string name="home_week_today">%1$s، اليوم</string>
-    <string name="home_week_missed">%1$s، فائت</string>
-    <string name="home_week_future">%1$s، قادم</string>
     <string name="home_shelf">رفّك</string>
     <string name="home_see_all">عرض الكل (%1$s)</string>
     <string name="library_import_short">استيراد</string>
