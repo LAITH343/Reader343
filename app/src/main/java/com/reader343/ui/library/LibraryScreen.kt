@@ -22,6 +22,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -36,6 +37,8 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.reader343.R
 import com.reader343.domain.LibraryFilter
+import com.reader343.ui.metadata.MetadataPickerHost
+import com.reader343.ui.metadata.rememberMetadataPicker
 import com.reader343.ui.components.ErrorState
 import com.reader343.ui.components.LoadingState
 import com.reader343.ui.components.PrimaryButton
@@ -45,10 +48,12 @@ import com.reader343.ui.components.formatNumber
 import com.reader343.ui.theme.Reader343Theme
 import com.reader343.ui.theme.appColors
 import com.reader343.ui.theme.appType
+import kotlinx.coroutines.launch
 
 @Composable
 fun LibraryRoute(
     onOpenBook: (Long) -> Unit,
+    onOpenInfo: (Long) -> Unit,
     onOpenNotes: (Long) -> Unit,
     viewModel: LibraryViewModel = hiltViewModel(),
 ) {
@@ -68,14 +73,17 @@ fun LibraryRoute(
         }
     }
     var menuBookId by rememberSaveable { mutableStateOf<Long?>(null) }
+    val picker = rememberMetadataPicker()
+    val scope = rememberCoroutineScope()
 
     LibraryScreen(
         state = state,
         importing = importing,
         snackbarHostState = snackbarHostState,
         onImport = { launcher.launch(arrayOf(PDF_MIME)) },
-        onOpenBook = onOpenBook,
+        onOpenBook = onOpenInfo,
         onOpenMenu = { menuBookId = it },
+        onReview = picker::openPicker,
         onFilter = viewModel::setFilter,
         onRetry = viewModel::retry,
     )
@@ -84,7 +92,17 @@ fun LibraryRoute(
         books = (state as? LibraryUiState.Content)?.books.orEmpty(),
         menuBookId = menuBookId,
         onMenuBookChange = { menuBookId = it },
-        actions = viewModel.bookMenuActions(onOpenBook = onOpenBook, onOpenNotes = onOpenNotes),
+        actions = viewModel.bookMenuActions(
+            onOpenBook = onOpenBook,
+            onOpenInfo = onOpenInfo,
+            onEdit = { picker.startEdit(it) },
+            onOpenNotes = onOpenNotes,
+        ),
+    )
+
+    MetadataPickerHost(
+        viewModel = picker,
+        onMessage = { message -> scope.launch { snackbarHostState.showSnackbar(message) } },
     )
 }
 
@@ -99,6 +117,7 @@ fun LibraryScreen(
     onFilter: (LibraryFilter) -> Unit,
     onRetry: () -> Unit,
     modifier: Modifier = Modifier,
+    onReview: (Long) -> Unit = {},
 ) {
     Scaffold(
         modifier = modifier,
@@ -153,6 +172,7 @@ fun LibraryScreen(
                             book = book,
                             onOpen = { onOpenBook(book.id) },
                             onMenu = { onOpenMenu(book.id) },
+                            onReview = { onReview(book.id) },
                             modifier = Modifier
                                 .animateItem()
                                 .padding(start = ScreenPadding, top = 12.dp, end = ScreenPadding),

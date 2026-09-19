@@ -50,6 +50,8 @@ import kotlinx.coroutines.launch
 
 class BookMenuActions(
     val onResume: (Long) -> Unit,
+    val onOpenInfo: ((Long) -> Unit)?,
+    val onEdit: (Long) -> Unit,
     val onOpenNotes: (Long) -> Unit,
     val onSetFinished: (Long, Boolean) -> Unit,
     val onResetProgress: (Long) -> Unit,
@@ -58,9 +60,13 @@ class BookMenuActions(
 
 fun LibraryViewModel.bookMenuActions(
     onOpenBook: (Long) -> Unit,
+    onOpenInfo: (Long) -> Unit,
+    onEdit: (Long) -> Unit,
     onOpenNotes: (Long) -> Unit,
 ) = BookMenuActions(
     onResume = onOpenBook,
+    onOpenInfo = onOpenInfo,
+    onEdit = onEdit,
     onOpenNotes = onOpenNotes,
     onSetFinished = ::setFinished,
     onResetProgress = ::resetProgress,
@@ -97,6 +103,8 @@ fun BookMenuHost(
             BookMenuContent(
                 book = menuBook,
                 onResume = { closeThen { actions.onResume(menuBook.id) } },
+                onOpenInfo = actions.onOpenInfo?.let { open -> { closeThen { open(menuBook.id) } } },
+                onEdit = { closeThen { actions.onEdit(menuBook.id) } },
                 onOpenNotes = { closeThen { actions.onOpenNotes(menuBook.id) } },
                 onToggleFinished = { closeThen { actions.onSetFinished(menuBook.id, !menuBook.finished) } },
                 onReset = {
@@ -147,6 +155,8 @@ fun BookMenuHost(
 private fun BookMenuContent(
     book: BookWithProgress,
     onResume: () -> Unit,
+    onOpenInfo: (() -> Unit)?,
+    onEdit: () -> Unit,
     onOpenNotes: () -> Unit,
     onToggleFinished: () -> Unit,
     onReset: () -> Unit,
@@ -207,7 +217,11 @@ private fun BookMenuContent(
             },
             onClick = onResume,
         )
+        if (onOpenInfo != null) {
+            MenuItem(icon = R.drawable.ic_ph_info, text = stringResource(R.string.book_menu_info), onClick = onOpenInfo)
+        }
         MenuItem(icon = R.drawable.ic_ph_note, text = stringResource(R.string.book_menu_notes), onClick = onOpenNotes)
+        MenuItem(icon = R.drawable.ic_ph_pencil_simple, text = stringResource(R.string.book_menu_edit), onClick = onEdit)
         MenuItem(
             icon = R.drawable.ic_ph_check_circle,
             text = stringResource(if (book.finished) R.string.book_menu_mark_unread else R.string.book_menu_mark_finished),
@@ -300,6 +314,8 @@ private fun BookMenuPreview() {
         BookMenuContent(
             book = PreviewBooks.first(),
             onResume = {},
+            onOpenInfo = {},
+            onEdit = {},
             onOpenNotes = {},
             onToggleFinished = {},
             onReset = {},

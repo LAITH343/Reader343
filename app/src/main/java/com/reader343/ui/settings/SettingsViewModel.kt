@@ -2,6 +2,7 @@ package com.reader343.ui.settings
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.reader343.data.repo.MetadataRepository
 import com.reader343.data.repo.SettingsRepository
 import com.reader343.data.repo.StatsRepository
 import com.reader343.data.repo.UpdateRepository
@@ -25,18 +26,21 @@ import javax.inject.Inject
 data class SettingsUiState(
     val settings: AppSettings,
     val goalContext: GoalContext,
+    val reviewBookIds: List<Long> = emptyList(),
 )
 
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
     private val repository: SettingsRepository,
     statsRepository: StatsRepository,
+    metadataRepository: MetadataRepository,
     updateRepository: UpdateRepository,
 ) : ViewModel() {
 
     val uiState: StateFlow<SettingsUiState?> = combine(
         repository.settings,
         statsRepository.observeGoalContext(),
+        metadataRepository.observeReviewIds(),
         ::SettingsUiState,
     ).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
@@ -58,6 +62,8 @@ class SettingsViewModel @Inject constructor(
     fun setStreakAlert(value: Boolean) = update { repository.setStreakAlert(value) }
 
     fun setReminderTime(value: LocalTime) = update { repository.setReminderTime(value) }
+
+    fun setAutoFetchMetadata(value: Boolean) = update { repository.setAutoFetchMetadata(value) }
 
     private fun update(block: suspend () -> Unit) {
         viewModelScope.launch { block() }

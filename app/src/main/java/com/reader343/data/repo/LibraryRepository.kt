@@ -13,9 +13,13 @@ import com.reader343.data.db.entity.BookEntity
 import com.reader343.data.db.entity.BookWithProgressRow
 import com.reader343.data.db.entity.OutlineEntryEntity
 import com.reader343.data.db.entity.ProgressEntity
+import com.reader343.domain.BookInfo
 import com.reader343.domain.BookWithProgress
+import com.reader343.domain.MetadataProvider
+import com.reader343.domain.MetadataStatus
 import com.reader343.domain.continueCandidate
 import com.reader343.domain.msPerPage
+import com.reader343.metadata.MetadataWorker
 import com.reader343.pdf.PdfImportReader
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CancellationException
@@ -37,6 +41,7 @@ class LibraryRepository @Inject constructor(
     private val progressDao: ProgressDao,
     private val outlineDao: OutlineDao,
     private val pdfReader: PdfImportReader,
+    private val settingsRepository: SettingsRepository,
 ) {
 
     private val booksDir get() = File(context.filesDir, "books").apply { mkdirs() }
@@ -47,6 +52,9 @@ class LibraryRepository @Inject constructor(
             val overall = msPerPage(rows.sumOf { it.readMs }, rows.sumOf { it.readPages })
             rows.map { it.toDomain(overall) }
         }
+
+    fun observeBook(id: Long): Flow<BookWithProgress?> =
+        observeBooks().map { books -> books.firstOrNull { it.id == id } }
 
     suspend fun continueBook(): BookWithProgress? = observeBooks().first().continueCandidate()
 
@@ -71,6 +79,7 @@ class LibraryRepository @Inject constructor(
                         pageCount = imported.pageCount,
                         coverPath = coverFile.takeIf { it.exists() }?.absolutePath,
                         addedAt = now,
+                        isbn = imported.isbn,
                     ),
                 )
                 progressDao.upsert(
@@ -95,6 +104,7 @@ class LibraryRepository @Inject constructor(
                 )
                 bookId
             }
+            if (settingsRepository.settings.first().autoFetchMetadata) MetadataWorker.enqueue(context, bookId)
             Result.success(bookId)
         } catch (e: Throwable) {
             pdfFile.delete()
@@ -114,9 +124,11 @@ class LibraryRepository @Inject constructor(
 
     suspend fun deleteBook(id: Long) = withContext(Dispatchers.IO) {
         val book = bookDao.getById(id) ?: return@withContext
+        MetadataWorker.cancel(context, id)
         bookDao.deleteById(id)
         File(book.filePath).delete()
         book.coverPath?.let { File(it).delete() }
+        book.metadataCoverPath?.let { File(it).delete() }
         runCatching {
             context.contentResolver.releasePersistableUriPermission(
                 Uri.parse(book.sourceUri),
@@ -142,7 +154,7 @@ class LibraryRepository @Inject constructor(
     private fun BookWithProgressRow.toDomain(overallMsPerPage: Long?) = BookWithProgress(
         id = book.id,
         title = book.title,
-        coverPath = book.coverPath,
+        coverPath = book.metadataCoverPath ?: book.coverPath,
         pageCount = book.pageCount,
         lastPage = progress?.lastPage ?: 0,
         percent = progress?.percent ?: 0f,
@@ -154,5 +166,17 @@ class LibraryRepository @Inject constructor(
         chapterTitle = chapterTitle,
         chapterEndPage = chapterEndPage,
         msPerPage = msPerPage(readMs, readPages) ?: overallMsPerPage,
+        metadata = BookInfo(
+            author = book.author,
+            description = book.description,
+            publishedYear = book.publishedYear,
+            publisher = book.publisher,
+            isbn = book.isbn,
+            provider = MetadataProvider.fromKey(book.metadataSource),
+            fetchedAt = book.metadataFetchedAt,
+            status = MetadataStatus.fromKey(book.metadataStatus),
+            hasRemoteCover = book.metadataCoverPath != null,
+            userEdited = book.userEdited,
+        ),
     )
 }

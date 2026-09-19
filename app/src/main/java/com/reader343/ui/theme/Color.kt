@@ -44,6 +44,7 @@ data class AppColors(
 ) {
     val accTint10: Color get() = TintBase.copy(alpha = 0.10f)
     val accTint12: Color get() = TintBase.copy(alpha = 0.12f)
+    val accTint14: Color get() = TintBase.copy(alpha = 0.14f)
     val accTint16: Color get() = TintBase.copy(alpha = 0.16f)
     val accTint18: Color get() = TintBase.copy(alpha = 0.18f)
     val accTint22: Color get() = TintBase.copy(alpha = 0.22f)

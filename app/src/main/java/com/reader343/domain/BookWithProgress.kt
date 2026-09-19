@@ -15,7 +15,9 @@ data class BookWithProgress(
     val chapterTitle: String? = null,
     val chapterEndPage: Int? = null,
     val msPerPage: Long? = null,
+    val metadata: BookInfo = BookInfo(),
 ) {
+    val needsReview: Boolean get() = metadata.status == MetadataStatus.Review
     val finished: Boolean get() = finishedAt != null
     val started: Boolean get() = lastReadAt != null
     val inProgress: Boolean get() = started && !finished
@@ -39,6 +41,19 @@ data class BookWithProgress(
         const val ALMOST_DONE = 0.75f
     }
 }
+
+data class BookInfo(
+    val author: String? = null,
+    val description: String? = null,
+    val publishedYear: Int? = null,
+    val publisher: String? = null,
+    val isbn: String? = null,
+    val provider: MetadataProvider? = null,
+    val fetchedAt: Long? = null,
+    val status: MetadataStatus? = null,
+    val hasRemoteCover: Boolean = false,
+    val userEdited: Boolean = false,
+)
 
 enum class BookStatus { Reading, AlmostDone, NotStarted, Finished }
 

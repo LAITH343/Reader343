@@ -5,6 +5,7 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Transaction
+import androidx.room.Update
 import com.reader343.data.db.entity.BookEntity
 import com.reader343.data.db.entity.BookmarkEntity
 import com.reader343.data.db.entity.BookWithProgressRow
@@ -54,6 +55,15 @@ interface BookDao {
 
     @Query("SELECT * FROM books WHERE id = :id")
     suspend fun getById(id: Long): BookEntity?
+
+    @Update
+    suspend fun update(book: BookEntity)
+
+    @Query("UPDATE books SET metadataStatus = :status WHERE id = :id")
+    suspend fun setMetadataStatus(id: Long, status: String?)
+
+    @Query("SELECT id FROM books WHERE metadataStatus = :status ORDER BY addedAt DESC")
+    fun observeIdsWithStatus(status: String): Flow<List<Long>>
 
     @Query("DELETE FROM books WHERE id = :id")
     suspend fun deleteById(id: Long)

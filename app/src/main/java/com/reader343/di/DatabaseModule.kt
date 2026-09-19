@@ -2,6 +2,7 @@ package com.reader343.di
 
 import android.content.Context
 import androidx.room.Room
+import com.reader343.data.db.ALL_MIGRATIONS
 import com.reader343.data.db.ReaderDatabase
 import com.reader343.data.db.dao.BookDao
 import com.reader343.data.db.dao.BookmarkDao
@@ -24,7 +25,9 @@ object DatabaseModule {
     @Provides
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): ReaderDatabase =
-        Room.databaseBuilder(context, ReaderDatabase::class.java, ReaderDatabase.NAME).build()
+        Room.databaseBuilder(context, ReaderDatabase::class.java, ReaderDatabase.NAME)
+            .addMigrations(*ALL_MIGRATIONS)
+            .build()
 
     @Provides
     fun provideBookDao(db: ReaderDatabase): BookDao = db.bookDao()

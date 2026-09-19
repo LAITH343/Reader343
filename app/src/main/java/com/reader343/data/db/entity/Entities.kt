@@ -1,5 +1,6 @@
 package com.reader343.data.db.entity
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
@@ -14,6 +15,17 @@ data class BookEntity(
     val pageCount: Int,
     val coverPath: String?,
     val addedAt: Long,
+    val author: String? = null,
+    val description: String? = null,
+    val publishedYear: Int? = null,
+    val publisher: String? = null,
+    val isbn: String? = null,
+    val remoteCoverUrl: String? = null,
+    val metadataCoverPath: String? = null,
+    val metadataSource: String? = null,
+    val metadataFetchedAt: Long? = null,
+    val metadataStatus: String? = null,
+    @ColumnInfo(defaultValue = "0") val userEdited: Boolean = false,
 )
 
 @Entity(

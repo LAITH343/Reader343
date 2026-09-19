@@ -58,6 +58,8 @@ class SettingsRepository @Inject constructor(
         it[Keys.REMINDER_TIME] = value.hour * MINUTES_PER_HOUR + value.minute
     }
 
+    suspend fun setAutoFetchMetadata(value: Boolean) = edit { it[Keys.AUTO_FETCH_METADATA] = value }
+
     private suspend fun edit(block: (MutablePreferences) -> Unit) {
         dataStore.edit(block)
     }
@@ -78,6 +80,7 @@ class SettingsRepository @Inject constructor(
                 streakEnabled = this[Keys.STREAK_ALERT] ?: defaults.reminders.streakEnabled,
                 time = this[Keys.REMINDER_TIME]?.let(::timeOf) ?: defaults.reminders.time,
             ),
+            autoFetchMetadata = this[Keys.AUTO_FETCH_METADATA] ?: defaults.autoFetchMetadata,
         )
     }
 
@@ -112,6 +115,7 @@ class SettingsRepository @Inject constructor(
         val DAILY_REMINDER = booleanPreferencesKey("daily_reminder")
         val STREAK_ALERT = booleanPreferencesKey("streak_alert")
         val REMINDER_TIME = intPreferencesKey("reminder_at")
+        val AUTO_FETCH_METADATA = booleanPreferencesKey("auto_fetch_metadata")
     }
 
     private companion object {

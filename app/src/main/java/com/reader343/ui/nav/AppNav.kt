@@ -27,6 +27,7 @@ import com.reader343.ui.components.BottomBarVisibility
 import com.reader343.ui.components.LocalBottomBarVisibility
 import com.reader343.ui.components.Motion
 import com.reader343.ui.components.reducedMotion
+import com.reader343.ui.detail.BookDetailRoute
 import com.reader343.ui.library.HomeRoute
 import com.reader343.ui.library.LibraryRoute
 import com.reader343.ui.notes.NotesRoute
@@ -43,6 +44,7 @@ object Routes {
     const val LIBRARY = "library"
     const val READER = "reader/{bookId}?page={page}"
     const val NOTES = "notes/{bookId}"
+    const val BOOK = "book/{bookId}"
     const val STATS = "stats"
     const val SETTINGS = "settings"
     const val UPDATE = "update"
@@ -53,6 +55,8 @@ object Routes {
     fun reader(bookId: Long, page: Int = -1) = "reader/$bookId?page=$page"
 
     fun notes(bookId: Long) = "notes/$bookId"
+
+    fun book(bookId: Long) = "book/$bookId"
 }
 
 @Composable
@@ -93,6 +97,7 @@ fun AppNav(continueRequests: Flow<Long?> = emptyFlow()) {
                 composable(Routes.HOME) { entry ->
                     HomeRoute(
                         onOpenBook = { navController.navigateFrom(entry, Routes.reader(it)) },
+                        onOpenInfo = { navController.navigateFrom(entry, Routes.book(it)) },
                         onOpenNotes = { navController.navigateFrom(entry, Routes.notes(it)) },
                         onOpenLibrary = { navController.tabFrom(entry, TopLevelTab.Library) },
                         onOpenUpdate = { navController.navigateFrom(entry, Routes.UPDATE) },
@@ -100,6 +105,17 @@ fun AppNav(continueRequests: Flow<Long?> = emptyFlow()) {
                 }
                 composable(Routes.LIBRARY) { entry ->
                     LibraryRoute(
+                        onOpenBook = { navController.navigateFrom(entry, Routes.reader(it)) },
+                        onOpenInfo = { navController.navigateFrom(entry, Routes.book(it)) },
+                        onOpenNotes = { navController.navigateFrom(entry, Routes.notes(it)) },
+                    )
+                }
+                composable(
+                    route = Routes.BOOK,
+                    arguments = listOf(navArgument(Routes.ARG_BOOK_ID) { type = NavType.LongType }),
+                ) { entry ->
+                    BookDetailRoute(
+                        onBack = { navController.popFrom(entry) },
                         onOpenBook = { navController.navigateFrom(entry, Routes.reader(it)) },
                         onOpenNotes = { navController.navigateFrom(entry, Routes.notes(it)) },
                     )
@@ -140,7 +156,9 @@ fun AppNav(continueRequests: Flow<Long?> = emptyFlow()) {
                     )
                 }
                 composable(Routes.SETTINGS) { entry ->
-                    SettingsRoute(onOpenUpdate = { navController.navigateFrom(entry, Routes.UPDATE) })
+                    SettingsRoute(
+                        onOpenUpdate = { navController.navigateFrom(entry, Routes.UPDATE) },
+                    )
                 }
                 composable(Routes.UPDATE) { entry ->
                     UpdateRoute(onBack = { navController.popFrom(entry) })

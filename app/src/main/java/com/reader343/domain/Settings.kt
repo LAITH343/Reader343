@@ -48,4 +48,5 @@ data class AppSettings(
     val goal: DailyGoal = DailyGoal(),
     val goalHistory: List<GoalChange> = emptyList(),
     val reminders: ReminderSettings = ReminderSettings(),
+    val autoFetchMetadata: Boolean = true,
 )

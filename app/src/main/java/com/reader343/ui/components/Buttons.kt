@@ -71,6 +71,7 @@ fun SecondaryButton(
     modifier: Modifier = Modifier,
     @DrawableRes icon: Int? = null,
     enabled: Boolean = true,
+    borderColor: Color = MaterialTheme.appColors.line2,
 ) {
     val colors = MaterialTheme.appColors
     ButtonFrame(
@@ -78,7 +79,7 @@ fun SecondaryButton(
         modifier = modifier,
         enabled = enabled,
         container = Color.Transparent,
-        border = BorderStroke(1.dp, colors.line2),
+        border = BorderStroke(1.dp, borderColor),
         contentColor = colors.ink2,
         minHeight = ButtonHeight,
         textStyle = MaterialTheme.typography.labelLarge,

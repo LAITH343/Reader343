@@ -30,6 +30,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -53,6 +54,8 @@ import com.reader343.domain.BookWithProgress
 import com.reader343.domain.DailyGoal
 import com.reader343.domain.GoalUnit
 import com.reader343.domain.LibraryFilter
+import com.reader343.ui.metadata.MetadataPickerHost
+import com.reader343.ui.metadata.rememberMetadataPicker
 import com.reader343.ui.components.AppCard
 import com.reader343.ui.components.BookCover
 import com.reader343.ui.components.ErrorState
@@ -80,10 +83,12 @@ import com.reader343.ui.theme.appShapes
 import com.reader343.ui.theme.appType
 import java.time.LocalDateTime
 import java.time.format.TextStyle
+import kotlinx.coroutines.launch
 
 @Composable
 fun HomeRoute(
     onOpenBook: (Long) -> Unit,
+    onOpenInfo: (Long) -> Unit,
     onOpenNotes: (Long) -> Unit,
     onOpenLibrary: () -> Unit,
     onOpenUpdate: () -> Unit,
@@ -106,6 +111,8 @@ fun HomeRoute(
         }
     }
     var menuBookId by rememberSaveable { mutableStateOf<Long?>(null) }
+    val picker = rememberMetadataPicker()
+    val scope = rememberCoroutineScope()
     var goalSheet by rememberSaveable { mutableStateOf(false) }
 
     HomeScreen(
@@ -128,7 +135,17 @@ fun HomeRoute(
         books = (state as? LibraryUiState.Content)?.books.orEmpty(),
         menuBookId = menuBookId,
         onMenuBookChange = { menuBookId = it },
-        actions = viewModel.bookMenuActions(onOpenBook = onOpenBook, onOpenNotes = onOpenNotes),
+        actions = viewModel.bookMenuActions(
+            onOpenBook = onOpenBook,
+            onOpenInfo = onOpenInfo,
+            onEdit = { picker.startEdit(it) },
+            onOpenNotes = onOpenNotes,
+        ),
+    )
+
+    MetadataPickerHost(
+        viewModel = picker,
+        onMessage = { message -> scope.launch { snackbarHostState.showSnackbar(message) } },
     )
 }
 

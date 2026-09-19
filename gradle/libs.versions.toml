@@ -11,6 +11,7 @@ hilt = "2.60.1"
 hiltNavigationCompose = "1.4.0"
 room = "2.8.5"
 coroutines = "1.11.0"
+serialization = "1.8.1"
 pdfium = "2.0.3"
 coil = "3.6.3"
 datastore = "1.2.0"
@@ -40,6 +41,8 @@ androidx-hilt-navigation-compose = { group = "androidx.hilt", name = "hilt-navig
 androidx-room-runtime = { group = "androidx.room", name = "room-runtime", version.ref = "room" }
 androidx-room-ktx = { group = "androidx.room", name = "room-ktx", version.ref = "room" }
 androidx-room-compiler = { group = "androidx.room", name = "room-compiler", version.ref = "room" }
+androidx-room-testing = { group = "androidx.room", name = "room-testing", version.ref = "room" }
+kotlinx-serialization-json = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-json", version.ref = "serialization" }
 kotlinx-coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-android", version.ref = "coroutines" }
 pdfium-android = { group = "io.legere", name = "pdfiumandroid", version.ref = "pdfium" }
 coil-compose = { group = "io.coil-kt.coil3", name = "coil-compose", version.ref = "coil" }

@@ -5,6 +5,8 @@ import android.graphics.Color
 import android.os.ParcelFileDescriptor
 import com.reader343.di.PdfDispatcher
 import com.reader343.domain.OutlineEntry
+import com.reader343.domain.findIsbn
+import io.legere.pdfiumandroid.PdfDocument
 import io.legere.pdfiumandroid.PdfPage
 import io.legere.pdfiumandroid.PdfiumCore
 import kotlinx.coroutines.CoroutineDispatcher
@@ -13,7 +15,7 @@ import java.io.File
 import javax.inject.Inject
 import javax.inject.Singleton
 
-data class ImportedPdf(val pageCount: Int, val outline: List<OutlineEntry>)
+data class ImportedPdf(val pageCount: Int, val outline: List<OutlineEntry>, val isbn: String? = null)
 
 @Singleton
 class PdfImportReader @Inject constructor(
@@ -34,11 +36,25 @@ class PdfImportReader @Inject constructor(
                 val pageCount = document.getPageCount()
                 if (pageCount > 0) document.openPage(0)?.let { renderCover(it, cover, coverWidth) }
                 val outline = runCatching { document.getTableOfContents().flatten(pageCount) }.getOrDefault(emptyList())
-                ImportedPdf(pageCount, outline)
+                val isbn = runCatching { findIsbnIn(document, pageCount) }.getOrNull()
+                ImportedPdf(pageCount, outline, isbn)
             } finally {
                 document.close()
             }
         }
+
+    private fun findIsbnIn(document: PdfDocument, pageCount: Int): String? {
+        for (index in 0 until minOf(pageCount, ISBN_PAGES)) {
+            val text = document.openPage(index)?.use { page ->
+                page.openTextPage().use { textPage ->
+                    val count = textPage.textPageCountChars()
+                    if (count > 0) textPage.textPageGetText(0, count).orEmpty() else ""
+                }
+            } ?: continue
+            findIsbn(text)?.let { return it }
+        }
+        return null
+    }
 
     private fun renderCover(page: PdfPage, cover: File, width: Int) {
         try {
@@ -60,5 +76,6 @@ class PdfImportReader @Inject constructor(
 
     private companion object {
         const val COVER_WIDTH = 480
+        const val ISBN_PAGES = 6
     }
 }

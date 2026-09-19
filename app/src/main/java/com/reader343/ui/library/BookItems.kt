@@ -1,6 +1,16 @@
 package com.reader343.ui.library
 
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.height
+import androidx.compose.material3.Icon
+import androidx.compose.material3.minimumInteractiveComponentSize
+import androidx.compose.ui.res.painterResource
+import com.reader343.domain.BookInfo
+import com.reader343.domain.MetadataStatus
+import com.reader343.ui.components.appClickable
+import com.reader343.ui.metadata.authorLabel
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -60,6 +70,7 @@ fun LibraryBookRow(
     onOpen: () -> Unit,
     onMenu: () -> Unit,
     modifier: Modifier = Modifier,
+    onReview: () -> Unit = {},
 ) {
     val colors = MaterialTheme.appColors
     val haptics = LocalHapticFeedback.current
@@ -98,6 +109,16 @@ fun LibraryBookRow(
                             maxLines = 2,
                             overflow = TextOverflow.Ellipsis,
                         )
+                        authorLabel(book)?.let { label ->
+                            Text(
+                                text = label.text,
+                                style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.5.sp),
+                                color = if (label.muted) colors.ink3 else colors.ink2,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.padding(top = 2.dp),
+                            )
+                        }
                         Text(
                             text = bookMeta(book),
                             style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
@@ -134,7 +155,9 @@ fun LibraryBookRow(
                 FlowRow(
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                     verticalArrangement = Arrangement.spacedBy(6.dp),
+                    itemVerticalAlignment = Alignment.CenterVertically,
                 ) {
+                    if (book.needsReview) ReviewPill(onClick = onReview)
                     StatusPill(book.status)
                     Pill(
                         text = if (book.marks > 0) {
@@ -214,6 +237,36 @@ fun ShelfBook(
 }
 
 @Composable
+private fun ReviewPill(onClick: () -> Unit) {
+    val amber = MaterialTheme.appColors.amber
+    val shape = MaterialTheme.appShapes.pill
+    Row(
+        modifier = Modifier
+            .minimumInteractiveComponentSize()
+            .height(SmallPillHeight)
+            .background(amber.fill, shape)
+            .border(1.dp, amber.border, shape)
+            .appClickable(shape = shape, onClick = onClick)
+            .padding(horizontal = 9.dp),
+        horizontalArrangement = Arrangement.spacedBy(5.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            painter = painterResource(R.drawable.ic_ph_seal_question),
+            contentDescription = null,
+            tint = amber.text,
+            modifier = Modifier.size(13.dp),
+        )
+        Text(
+            text = stringResource(R.string.metadata_needs_review),
+            style = MaterialTheme.typography.labelMedium.copy(fontSize = 11.sp),
+            color = amber.text,
+            maxLines = 1,
+        )
+    }
+}
+
+@Composable
 private fun StatusPill(status: BookStatus) {
     when (status) {
         BookStatus.Reading -> Pill(
@@ -265,8 +318,14 @@ internal val PreviewBooks = listOf(
         highlightCount = 12, noteCount = 2, bookmarkCount = 1,
         chapterTitle = "Chapter 1 · Reliability", chapterEndPage = 40, msPerPage = 90_000L,
     ),
-    BookWithProgress(2, "The Rust Programming Language", null, 560, 268, 0.48f, System.currentTimeMillis() - 86_400_000, highlightCount = 31),
-    BookWithProgress(3, "Crafting Interpreters", null, 640, 486, 0.76f, System.currentTimeMillis() - 259_200_000, highlightCount = 40, noteCount = 12),
+    BookWithProgress(
+        2, "The Rust Programming Language", null, 560, 268, 0.48f, System.currentTimeMillis() - 86_400_000,
+        highlightCount = 31, metadata = BookInfo(author = "Steve Klabnik & Carol Nichols", status = MetadataStatus.Applied),
+    ),
+    BookWithProgress(
+        3, "Crafting Interpreters", null, 640, 486, 0.76f, System.currentTimeMillis() - 259_200_000,
+        highlightCount = 40, noteCount = 12, metadata = BookInfo(status = MetadataStatus.Review),
+    ),
     BookWithProgress(4, "Operating Systems: Three Easy Pieces", null, 714, 0, 0f, null),
     BookWithProgress(5, "The Pragmatic Programmer", null, 352, 351, 1f, System.currentTimeMillis() - 604_800_000, finishedAt = 1L, highlightCount = 8),
 )

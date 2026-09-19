@@ -89,6 +89,8 @@ import com.reader343.ui.components.disabledAlpha
 import com.reader343.ui.components.focusRing
 import com.reader343.ui.components.formatMinutes
 import com.reader343.ui.components.formatNumber
+import com.reader343.ui.metadata.MetadataPickerHost
+import com.reader343.ui.metadata.rememberMetadataPicker
 import com.reader343.ui.theme.PaperSwatch
 import com.reader343.ui.theme.Reader343Theme
 import com.reader343.ui.theme.appColors
@@ -107,6 +109,7 @@ fun SettingsRoute(
     onOpenUpdate: () -> Unit,
     viewModel: SettingsViewModel = hiltViewModel(),
 ) {
+    val picker = rememberMetadataPicker()
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val update by viewModel.update.collectAsStateWithLifecycle()
     val access = rememberNotificationAccess()
@@ -145,6 +148,8 @@ fun SettingsRoute(
             },
             onReminderTime = viewModel::setReminderTime,
             onOpenUpdate = onOpenUpdate,
+            onAutoFetch = viewModel::setAutoFetchMetadata,
+            onReview = { state?.reviewBookIds?.firstOrNull()?.let(picker::openPicker) },
         ),
         update = update,
         snackbarHostState = snackbarHostState,
@@ -159,6 +164,11 @@ fun SettingsRoute(
     )
 
     DailyGoalSheetHost(visible = goalSheet, onDismiss = { goalSheet = false })
+
+    MetadataPickerHost(
+        viewModel = picker,
+        onMessage = { message -> scope.launch { snackbarHostState.showSnackbar(message) } },
+    )
 
     pendingReminder?.let { kind ->
         NotificationRationaleDialog(
@@ -201,6 +211,8 @@ class SettingsActions(
     val onReminder: (ReminderKind, Boolean) -> Unit,
     val onReminderTime: (LocalTime) -> Unit,
     val onOpenUpdate: () -> Unit,
+    val onAutoFetch: (Boolean) -> Unit = {},
+    val onReview: () -> Unit = {},
 )
 
 @Composable
@@ -319,6 +331,22 @@ private fun LazyListScope.settingsContent(
                         }
                     }
                 }
+            }
+        }
+    }
+
+    item(key = "book_info_label") { GroupLabel(R.string.book_info_title) }
+    item(key = "book_info") {
+        SettingsGroup {
+            SwitchRow(
+                title = stringResource(R.string.settings_auto_fetch),
+                body = stringResource(R.string.settings_auto_fetch_hint),
+                checked = settings.autoFetchMetadata,
+                onCheckedChange = actions.onAutoFetch,
+            )
+            if (state.reviewBookIds.isNotEmpty()) {
+                GroupDivider()
+                ReviewRow(count = state.reviewBookIds.size, onClick = actions.onReview)
             }
         }
     }
@@ -594,6 +622,31 @@ private fun ReminderTimeRow(
 }
 
 @Composable
+private fun ReviewRow(
+    count: Int,
+    onClick: () -> Unit,
+) {
+    val colors = MaterialTheme.appColors
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 64.dp)
+            .appClickable(shape = RectangleShape, onClick = onClick)
+            .padding(horizontal = RowPadding, vertical = 14.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        IconTile(icon = R.drawable.ic_ph_seal_question, container = colors.amber.fill, content = colors.amber.text)
+        RowText(
+            title = stringResource(R.string.settings_review_row),
+            body = pluralStringResource(R.plurals.settings_review_row_hint, count, formatNumber(count)),
+            modifier = Modifier.weight(1f),
+        )
+        Pill(text = formatNumber(count), tone = PillTone.Amber)
+    }
+}
+
+@Composable
 private fun WarningRow(
     title: String,
     body: String,
@@ -798,6 +851,7 @@ private val PreviewState = SettingsUiState(
         reminders = ReminderSettings(dailyEnabled = true, streakEnabled = true, time = LocalTime.of(19, 0)),
     ),
     goalContext = GoalContext(metLastWeek = 5, avgSessionMs = 22 * MINUTE_MS, pagesPerDay = 15),
+    reviewBookIds = listOf(3L),
 )
 
 private val PreviewActions = SettingsActions({}, {}, {}, {}, { _, _ -> }, {}, {})

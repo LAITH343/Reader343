@@ -78,6 +78,8 @@ jobs:
           } >keystore.properties
 
       - name: Build
+        env:
+          GOOGLE_BOOKS_API_KEY: ${{ secrets.GOOGLE_BOOKS_API_KEY }}
         run: ./gradlew testDebugUnitTest assembleRelease
 
       - name: Verify and name APK
