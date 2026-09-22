@@ -127,6 +127,8 @@
     <string name="language_english" translatable="false">English</string>
     <string name="language_arabic" translatable="false">العربية</string>
     <string name="settings_reading">Reading</string>
+    <string name="settings_goal_reminders">Goal &amp; reminders</string>
+    <string name="settings_read_aloud_hint">Voice, speed and playback</string>
     <string name="settings_daily_goal">Daily goal</string>
     <string name="settings_goal_unit_minutes">Minutes</string>
     <string name="settings_goal_unit_pages">Pages</string>

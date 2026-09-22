@@ -32,6 +32,8 @@ import com.reader343.ui.library.HomeRoute
 import com.reader343.ui.library.LibraryRoute
 import com.reader343.ui.notes.NotesRoute
 import com.reader343.ui.reader.ReaderRoute
+import com.reader343.ui.settings.GoalRemindersRoute
+import com.reader343.ui.settings.ReadAloudSettingsRoute
 import com.reader343.ui.settings.SettingsRoute
 import com.reader343.ui.stats.StatsRoute
 import com.reader343.ui.theme.appColors
@@ -49,6 +51,8 @@ object Routes {
     const val BOOK = "book/{bookId}"
     const val STATS = "stats"
     const val SETTINGS = "settings"
+    const val SETTINGS_GOAL = "settings/goal"
+    const val SETTINGS_READ_ALOUD = "settings/read_aloud"
     const val UPDATE = "update"
     const val ARG_BOOK_ID = "bookId"
     const val ARG_PAGE = "page"
@@ -163,7 +167,15 @@ fun AppNav(
                 composable(Routes.SETTINGS) { entry ->
                     SettingsRoute(
                         onOpenUpdate = { navController.navigateFrom(entry, Routes.UPDATE) },
+                        onOpenGoalReminders = { navController.navigateFrom(entry, Routes.SETTINGS_GOAL) },
+                        onOpenReadAloud = { navController.navigateFrom(entry, Routes.SETTINGS_READ_ALOUD) },
                     )
+                }
+                composable(Routes.SETTINGS_GOAL) { entry ->
+                    GoalRemindersRoute(onBack = { navController.popFrom(entry) })
+                }
+                composable(Routes.SETTINGS_READ_ALOUD) { entry ->
+                    ReadAloudSettingsRoute(onBack = { navController.popFrom(entry) })
                 }
                 composable(Routes.UPDATE) { entry ->
                     UpdateRoute(onBack = { navController.popFrom(entry) })

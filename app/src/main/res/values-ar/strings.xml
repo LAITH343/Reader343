@@ -156,6 +156,8 @@
     <string name="settings_page_sepia">سيبيا</string>
     <string name="settings_language">اللغة</string>
     <string name="settings_reading">القراءة</string>
+    <string name="settings_goal_reminders">الهدف والتذكيرات</string>
+    <string name="settings_read_aloud_hint">الصوت والسرعة والتشغيل</string>
     <string name="settings_daily_goal">الهدف اليومي</string>
     <string name="settings_goal_unit_minutes">دقائق</string>
     <string name="settings_goal_unit_pages">صفحات</string>
