@@ -1,6 +1,8 @@
 package com.reader343.ui.settings
 
 import android.text.format.Formatter
+import android.content.Context
+import android.content.Intent
 import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
 import androidx.compose.foundation.background
@@ -53,10 +55,11 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.net.toUri
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.reader343.BuildConfig
 import com.reader343.R
+import com.reader343.update.GitHubReleases
 import com.reader343.domain.AppLanguage
 import com.reader343.domain.AppSettings
 import com.reader343.domain.DailyGoal
@@ -293,7 +296,7 @@ private fun LazyListScope.settingsContent(
         SettingsGroup {
             UpdateRow(update = update, onClick = actions.onOpenUpdate)
             GroupDivider()
-            AboutRow()
+            SourceRow()
         }
     }
 }
@@ -549,28 +552,31 @@ private fun UpdateRow(
 }
 
 @Composable
-private fun AboutRow() {
+private fun SourceRow() {
     val colors = MaterialTheme.appColors
+    val context = LocalContext.current
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .semantics(mergeDescendants = true) {}
+            .heightIn(min = 64.dp)
+            .appClickable(shape = RectangleShape, onClick = { context.openSource() })
             .padding(horizontal = RowPadding, vertical = 14.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        IconTile(icon = R.drawable.ic_ph_shield_check, container = colors.surf2, content = colors.accLt)
+        IconTile(icon = R.drawable.ic_github_logo, container = colors.surf2, content = colors.ink)
         RowText(
-            title = stringResource(
-                R.string.settings_about_version,
-                stringResource(R.string.app_name),
-                BuildConfig.VERSION_NAME,
-                formatNumber(BuildConfig.VERSION_CODE),
-            ),
-            body = stringResource(R.string.settings_about_offline),
-            titleSize = 14,
+            title = stringResource(R.string.settings_source_code),
+            body = stringResource(R.string.settings_source_code_hint),
+            modifier = Modifier.weight(1f),
         )
+        Caret()
     }
+}
+
+private fun Context.openSource() {
+    val intent = Intent(Intent.ACTION_VIEW, SOURCE_URL.toUri()).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    runCatching { startActivity(intent) }
 }
 
 @Composable
@@ -633,6 +639,7 @@ internal val RowPadding = 16.dp
 private val IconTileSize = 36.dp
 internal val ChoiceHeight = 44.dp
 private const val MINUTE_MS = 60_000L
+private val SOURCE_URL = "https://github.com/${GitHubReleases.REPOSITORY}"
 
 private val PreviewState = SettingsUiState(
     settings = AppSettings(

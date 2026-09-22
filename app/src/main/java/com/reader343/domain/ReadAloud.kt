@@ -39,6 +39,8 @@ interface SpeechSource {
 
 val ReadAloudSpeeds: List<Float> = listOf(0.75f, 1f, 1.25f, 1.5f, 2f)
 
+val ReadAloudSpeedSteps: List<Float> = (1..8).map { it * 0.25f }
+
 fun nextReadAloudSpeed(current: Float): Float =
     ReadAloudSpeeds.firstOrNull { it > current + SPEED_EPSILON } ?: ReadAloudSpeeds.first()
 

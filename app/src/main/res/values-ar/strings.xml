@@ -178,8 +178,6 @@
     <string name="settings_reminder_time">وقت التذكير</string>
     <string name="settings_reminder_time_hint">تنبيه عند %1$s، وتنبيه السلسلة عند %2$s</string>
     <string name="settings_reminder_time_change">تغيير وقت التذكير</string>
-    <string name="settings_about_version">%1$s · الإصدار %2$s (البناء %3$s)</string>
-    <string name="settings_about_offline">مكتبة دون اتصال. بلا حساب.</string>
     <string name="goal_sheet_subtitle">هدف صغير تلتزم به خير من هدف كبير تتركه.</string>
     <string name="goal_sheet_turn_off">إيقاف</string>
     <string name="goal_off_title">إيقاف الهدف اليومي؟</string>
@@ -222,6 +220,8 @@
     </plurals>
     <string name="goal_hint_start">ابدأ بهدف صغير، ويمكنك رفعه حين تصبح القراءة عادة.</string>
     <string name="settings_about">حول التطبيق</string>
+    <string name="settings_source_code">الكود المصدري</string>
+    <string name="settings_source_code_hint">افتح المستودع على GitHub</string>
     <string name="reminder_channel_name">تذكيرات القراءة</string>
     <string name="reminder_channel_description">تذكيرات يومية بالقراءة والسلسلة</string>
     <string name="reminder_reading_title">حان وقت القراءة</string>

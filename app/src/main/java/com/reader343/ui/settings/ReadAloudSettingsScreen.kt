@@ -13,14 +13,16 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -43,13 +45,12 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.reader343.R
 import com.reader343.domain.ReadAloudPitches
 import com.reader343.domain.ReadAloudSettings
-import com.reader343.domain.ReadAloudSpeeds
+import com.reader343.domain.ReadAloudSpeedSteps
 import com.reader343.domain.SleepTimer
 import com.reader343.domain.TtsVoice
 import com.reader343.domain.readAloudSpeedLabel
 import com.reader343.ui.components.AppTopBar
 import com.reader343.ui.components.LoadingState
-import com.reader343.ui.components.SelectableSurface
 import com.reader343.ui.components.appClickable
 import com.reader343.ui.components.formatNumber
 import com.reader343.ui.readaloud.NotInstalledChip
@@ -59,6 +60,7 @@ import com.reader343.ui.theme.Reader343Theme
 import com.reader343.ui.theme.appColors
 import com.reader343.ui.theme.appShapes
 import java.util.Locale
+import kotlin.math.roundToInt
 
 interface ReadAloudSettingsActions {
     fun onShowVoices()
@@ -180,14 +182,14 @@ private fun ReadAloudGroup(
     SettingsGroup {
         VoiceRow(settings = settings, voices = voices, onClick = actions::onShowVoices)
         GroupDivider()
-        RateGroup(
+        RateSlider(
             title = stringResource(R.string.read_aloud_speed),
-            options = ReadAloudSpeeds,
+            options = ReadAloudSpeedSteps,
             value = settings.speed,
             onSelect = actions::onSpeed,
         )
         GroupDivider()
-        RateGroup(
+        RateSlider(
             title = stringResource(R.string.settings_read_aloud_pitch),
             options = ReadAloudPitches,
             value = settings.pitch,
@@ -277,17 +279,20 @@ private fun VoiceRow(
 }
 
 @Composable
-private fun RateGroup(
+private fun RateSlider(
     title: String,
     options: List<Float>,
     value: Float,
     onSelect: (Float) -> Unit,
 ) {
     val colors = MaterialTheme.appColors
-    val label = readAloudSpeedLabel(value)
+    var dragging by remember { mutableStateOf<Float?>(null) }
+    val selected = options.indexOfNearest(value).toFloat()
+    val position = dragging ?: selected
+    val label = readAloudSpeedLabel(options[position.roundToInt().coerceIn(options.indices)])
     Column(
         modifier = Modifier.padding(horizontal = RowPadding, vertical = 14.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
+        verticalArrangement = Arrangement.spacedBy(2.dp),
     ) {
         Row(
             modifier = Modifier
@@ -308,32 +313,33 @@ private fun RateGroup(
                 color = colors.ink3,
             )
         }
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .selectableGroup(),
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-        ) {
-            options.forEach { option ->
-                val text = readAloudSpeedLabel(option)
-                SelectableSurface(
-                    selected = option == value,
-                    onClick = { onSelect(option) },
-                    modifier = Modifier
-                        .weight(1f)
-                        .semantics { contentDescription = "$title $text" },
-                    minHeight = ChoiceHeight,
-                    contentPadding = PaddingValues(horizontal = 4.dp),
-                ) {
-                    Text(
-                        text = text,
-                        style = MaterialTheme.typography.labelMedium.copy(textDirection = TextDirection.Ltr),
-                        maxLines = 1,
-                    )
-                }
-            }
-        }
+        Slider(
+            value = position,
+            onValueChange = { dragging = it },
+            onValueChangeFinished = {
+                dragging?.let { onSelect(options[it.roundToInt().coerceIn(options.indices)]) }
+                dragging = null
+            },
+            valueRange = 0f..(options.size - 1).toFloat(),
+            steps = (options.size - 2).coerceAtLeast(0),
+            colors = SliderDefaults.colors(
+                thumbColor = colors.accTx,
+                activeTrackColor = colors.acc,
+                inactiveTrackColor = colors.line2,
+                activeTickColor = colors.bg,
+                inactiveTickColor = colors.ink3,
+            ),
+            modifier = Modifier.semantics {
+                contentDescription = title
+                stateDescription = label
+            },
+        )
     }
+}
+
+private fun List<Float>.indexOfNearest(value: Float): Int {
+    val index = indices.minByOrNull { kotlin.math.abs(this[it] - value) }
+    return index ?: 0
 }
 
 @Composable
