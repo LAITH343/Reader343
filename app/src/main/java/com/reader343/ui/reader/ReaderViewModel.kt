@@ -104,6 +104,7 @@ sealed interface ReaderUiState {
         val pace: ReadingPace = ReadingPace.Unknown,
         val session: SessionUi? = null,
         val contentsVisible: Boolean = false,
+        val rotated: Boolean = false,
     ) : ReaderUiState {
         val pageCount: Int get() = pageSizes.size
         val percent: Float get() = if (pageCount == 0) 0f else (currentPage + 1).toFloat() / pageCount
@@ -383,6 +384,15 @@ class ReaderViewModel @Inject constructor(
     override fun onToggleZoom() {
         scheduleChromeHide()
         onDoubleTap(Offset(viewport.width / 2f, viewport.height / 2f))
+    }
+
+    override fun onToggleRotation() {
+        scheduleChromeHide()
+        clearSelection()
+        stopZoomAnimation()
+        _zoom.value = ZoomState()
+        _detail.value = null
+        updateReady { it.copy(rotated = !it.rotated) }
     }
 
     override fun onSeek(page: Int) {

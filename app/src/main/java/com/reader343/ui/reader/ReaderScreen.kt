@@ -40,6 +40,7 @@ import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -76,12 +77,14 @@ import androidx.compose.ui.input.pointer.PointerId
 import androidx.compose.ui.input.pointer.PointerInputScope
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChanged
+import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
@@ -237,6 +240,7 @@ fun ReaderScreen(
                     onBack = onBack,
                     onShowNotes = onOpenNotes,
                     onToggleZoom = readerActions::onToggleZoom,
+                    onToggleRotation = readerActions::onToggleRotation,
                     onReadAloud = readAloudActions::onReadAloud,
                     modifier = Modifier.align(Alignment.TopCenter),
                 )
@@ -346,6 +350,7 @@ private fun ReaderPager(
             uiDirection = uiDirection,
             pageStyle = pageStyle,
             spoken = spoken?.takeIf { it.page == index },
+            rotated = state.rotated,
             onZoomGestureStart = onZoomGestureStart,
             onTransform = onTransform,
             onZoomGestureEnd = onZoomGestureEnd,
@@ -353,6 +358,27 @@ private fun ReaderPager(
             onTap = onTap,
             loadPage = loadPage,
         )
+    }
+}
+
+@Composable
+private fun RotatedPage(
+    rotated: Boolean,
+    modifier: Modifier = Modifier,
+    content: @Composable BoxScope.() -> Unit,
+) {
+    Layout(
+        content = { Box(modifier = modifier, content = content) },
+        modifier = if (rotated) Modifier.graphicsLayer { rotationZ = RotatedDegrees } else Modifier,
+    ) { measurables, constraints ->
+        val width = constraints.maxWidth
+        val height = constraints.maxHeight
+        val placeable = measurables.first().measure(
+            if (rotated) Constraints.fixed(height, width) else Constraints.fixed(width, height),
+        )
+        layout(width, height) {
+            placeable.place((width - placeable.width) / 2, (height - placeable.height) / 2)
+        }
     }
 }
 
@@ -376,6 +402,7 @@ private fun PdfPage(
     uiDirection: LayoutDirection,
     pageStyle: PageStyle,
     spoken: SpeechUnit?,
+    rotated: Boolean,
     onZoomGestureStart: () -> Unit,
     onTransform: (Offset, Offset, Float) -> Unit,
     onZoomGestureEnd: (Offset, Velocity) -> Unit,
@@ -421,7 +448,8 @@ private fun PdfPage(
         if (viewport != IntSize.Zero) bitmap = loadPage(page, viewport)
     }
 
-    Box(
+    RotatedPage(
+        rotated = rotated,
         modifier = Modifier
             .fillMaxSize()
             .onSizeChanged { viewport = it }
@@ -835,6 +863,7 @@ private val LoupeSize = DpSize(160.dp, 64.dp)
 private val LoupeCornerRadius = 32.dp
 private val LoupeLift = 80.dp
 private const val LOUPE_ZOOM = 2f
+private const val RotatedDegrees = 90f
 
 @Composable
 private fun SystemBarsVisibility(visible: Boolean) {

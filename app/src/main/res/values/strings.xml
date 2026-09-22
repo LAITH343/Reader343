@@ -279,6 +279,7 @@
     <string name="reader_time_left">%1$s left</string>
     <string name="reader_page_slider">Page</string>
     <string name="reader_zoom">Magnifier</string>
+    <string name="reader_rotate">Rotate page</string>
     <string name="reader_tool_highlight">Highlight</string>
     <string name="reader_tool_note">Note</string>
     <string name="reader_tool_bookmark">Bookmark</string>

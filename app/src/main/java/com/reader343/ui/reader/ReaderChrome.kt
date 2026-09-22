@@ -105,6 +105,7 @@ internal fun ReaderTopChrome(
     onBack: () -> Unit,
     onShowNotes: () -> Unit,
     onToggleZoom: () -> Unit,
+    onToggleRotation: () -> Unit,
     modifier: Modifier = Modifier,
     readAloud: ReadAloudUi = ReadAloudUi(),
     onReadAloud: () -> Unit = {},
@@ -125,6 +126,7 @@ internal fun ReaderTopChrome(
                 onBack = onBack,
                 onShowNotes = onShowNotes,
                 onToggleZoom = onToggleZoom,
+                onToggleRotation = onToggleRotation,
                 onReadAloud = onReadAloud,
             )
             state.session?.let { SessionPill(session = it, modifier = Modifier.padding(top = 12.dp)) }
@@ -141,6 +143,7 @@ private fun ReaderTopBar(
     onBack: () -> Unit,
     onShowNotes: () -> Unit,
     onToggleZoom: () -> Unit,
+    onToggleRotation: () -> Unit,
     onReadAloud: () -> Unit,
 ) {
     val colors = MaterialTheme.appColors
@@ -195,6 +198,13 @@ private fun ReaderTopBar(
             tone = IconButtonTone.Plain,
             badge = hasNotes,
             badgePulse = false,
+        )
+        IconBadgeButton(
+            icon = R.drawable.ic_ph_arrow_clockwise,
+            contentDescription = stringResource(R.string.reader_rotate),
+            onClick = onToggleRotation,
+            tone = if (state.rotated) IconButtonTone.Accent else IconButtonTone.Plain,
+            modifier = Modifier.semantics { selected = state.rotated },
         )
         IconBadgeButton(
             icon = R.drawable.ic_ph_magnifying_glass_plus,
