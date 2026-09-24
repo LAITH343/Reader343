@@ -44,6 +44,9 @@ class UpdateDownloadService : Service() {
     @Inject
     lateinit var settingsRepository: SettingsRepository
 
+    @Inject
+    lateinit var updateNotifier: UpdateNotifier
+
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private var language: AppLanguage = AppLanguage.System
     private var lastPercent = -1
@@ -69,6 +72,7 @@ class UpdateDownloadService : Service() {
         when (intent?.action) {
             ACTION_START -> {
                 NotificationManagerCompat.from(this).cancel(READY_NOTIFICATION_ID)
+                updateNotifier.cancelAvailable()
                 promote(progressNotification(downloader.state.value, null))
             }
             ACTION_PAUSE -> downloader.pause()
@@ -151,12 +155,7 @@ class UpdateDownloadService : Service() {
                 .setShowBadge(false)
                 .build(),
         )
-        manager.createNotificationChannel(
-            NotificationChannelCompat.Builder(READY_CHANNEL_ID, NotificationManagerCompat.IMPORTANCE_DEFAULT)
-                .setName(context.getString(R.string.update_ready_channel_name))
-                .setDescription(context.getString(R.string.update_ready_channel_description))
-                .build(),
-        )
+        updateNotifier.ensureChannel(language)
     }
 
     private fun progressNotification(download: DownloadState, versionName: String?): Notification {
@@ -199,7 +198,7 @@ class UpdateDownloadService : Service() {
         val context = localized()
         val body = versionName?.let { context.getString(R.string.update_ready_body_version, it) }
             ?: context.getString(R.string.update_ready_body)
-        return NotificationCompat.Builder(this, READY_CHANNEL_ID)
+        return NotificationCompat.Builder(this, UpdateNotifier.CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_ph_download_simple)
             .setContentTitle(context.getString(R.string.update_kicker_ready))
             .setContentText(body)
@@ -236,7 +235,6 @@ class UpdateDownloadService : Service() {
 
     companion object {
         private const val PROGRESS_CHANNEL_ID = "update_progress"
-        private const val READY_CHANNEL_ID = "updates"
         private const val PROGRESS_NOTIFICATION_ID = 4401
         private const val READY_NOTIFICATION_ID = 4402
         private const val PERCENT_MAX = 100

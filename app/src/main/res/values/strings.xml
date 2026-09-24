@@ -321,7 +321,8 @@
     <string name="update_progress_channel_name">Update downloads</string>
     <string name="update_progress_channel_description">Progress while an app update downloads</string>
     <string name="update_ready_channel_name">App updates</string>
-    <string name="update_ready_channel_description">Lets you know when an update is ready to install</string>
+    <string name="update_ready_channel_description">Lets you know when a new version is available or ready to install</string>
+    <string name="update_available_body">Version %1$s is out. Tap to see what\'s new and update.</string>
     <string name="update_ready_body_version">Version %1$s is downloaded. Tap to install.</string>
     <string name="update_ready_body">The update is downloaded. Tap to install.</string>
     <string name="update_kicker_available">Update available</string>

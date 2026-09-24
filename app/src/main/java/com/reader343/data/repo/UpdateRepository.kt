@@ -4,6 +4,7 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.emptyPreferences
+import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import com.reader343.di.ApplicationScope
@@ -115,6 +116,18 @@ class UpdateRepository @Inject constructor(
         return check()
     }
 
+    suspend fun claimAvailableNotice(): Release? {
+        val release = updateAvailable.first() ?: return null
+        var claimed = false
+        dataStore.edit {
+            if ((it[Keys.NOTIFIED_CODE] ?: 0) < release.versionCode) {
+                it[Keys.NOTIFIED_CODE] = release.versionCode
+                claimed = true
+            }
+        }
+        return release.takeIf { claimed }
+    }
+
     fun startDownload(allowMetered: Boolean) = downloader.start(allowMetered)
 
     fun pauseDownload() = downloader.pause()
@@ -126,6 +139,7 @@ class UpdateRepository @Inject constructor(
     private object Keys {
         val RELEASE = stringPreferencesKey("update_release")
         val CHECKED_AT = longPreferencesKey("update_checked_at")
+        val NOTIFIED_CODE = intPreferencesKey("update_notified_code")
     }
 
     companion object {
