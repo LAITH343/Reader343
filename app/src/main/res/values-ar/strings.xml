@@ -20,7 +20,6 @@
     <string name="action_cancel">إلغاء</string>
     <string name="reader_title">القارئ</string>
     <string name="reader_open_failed">تعذّر فتح هذا الكتاب</string>
-    <string name="reader_page_indicator">صفحة %1$s من %2$s</string>
     <string name="reader_page_loading">جارٍ تحميل الصفحة %1$d</string>
     <string name="highlight_delete">حذف التظليل</string>
     <string name="highlight_color_yellow">أصفر</string>
@@ -362,11 +361,8 @@
         <item quantity="many">%1$s صفحة</item>
         <item quantity="other">%1$s صفحة</item>
     </plurals>
-    <string name="reader_page_fraction">%1$s / %2$s</string>
     <string name="reader_time_left">متبقٍ %1$s</string>
-    <string name="reader_page_slider">الصفحة</string>
-    <string name="reader_zoom">المكبّر</string>
-    <string name="reader_rotate">تدوير الصفحة</string>
+    <string name="reader_menu">قائمة القارئ</string>
     <string name="reader_tool_highlight">تظليل</string>
     <string name="reader_tool_note">ملاحظة</string>
     <string name="reader_tool_bookmark">إشارة</string>

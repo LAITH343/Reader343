@@ -104,13 +104,11 @@ sealed interface ReaderUiState {
         val pace: ReadingPace = ReadingPace.Unknown,
         val session: SessionUi? = null,
         val contentsVisible: Boolean = false,
-        val rotated: Boolean = false,
     ) : ReaderUiState {
         val pageCount: Int get() = pageSizes.size
         val percent: Float get() = if (pageCount == 0) 0f else (currentPage + 1).toFloat() / pageCount
         val bookmarked: Boolean get() = bookmarks.any { it.page == currentPage }
         val hasContents: Boolean get() = outline.isNotEmpty() || bookmarks.isNotEmpty()
-        val timeLeftMs: Long? get() = pace.timeFor(pageCount - currentPage)
     }
 }
 
@@ -381,27 +379,9 @@ class ReaderViewModel @Inject constructor(
         animateScale(layout, position, target)
     }
 
-    override fun onToggleZoom() {
-        scheduleChromeHide()
-        onDoubleTap(Offset(viewport.width / 2f, viewport.height / 2f))
+    override fun onChromeHold(held: Boolean) {
+        if (held) chromeJob?.cancel() else scheduleChromeHide()
     }
-
-    override fun onToggleRotation() {
-        scheduleChromeHide()
-        clearSelection()
-        stopZoomAnimation()
-        _zoom.value = ZoomState()
-        _detail.value = null
-        updateReady { it.copy(rotated = !it.rotated) }
-    }
-
-    override fun onSeek(page: Int) {
-        if (page !in 0 until pageCount) return
-        scheduleChromeHide()
-        if (page != currentPage.value) updateReady { it.copy(pageRequest = page) }
-    }
-
-    override fun onChromeInteraction() = scheduleChromeHide()
 
     override fun onToggleBookmark() {
         scheduleChromeHide()

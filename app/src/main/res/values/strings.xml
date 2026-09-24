@@ -17,7 +17,6 @@
     <string name="action_cancel">Cancel</string>
     <string name="reader_title">Reader</string>
     <string name="reader_open_failed">Couldn\'t open this book</string>
-    <string name="reader_page_indicator">Page %1$s of %2$s</string>
     <string name="reader_page_loading">Loading page %1$d</string>
     <string name="highlight_delete">Delete highlight</string>
     <string name="highlight_color_yellow">Yellow</string>
@@ -277,11 +276,8 @@
         <item quantity="one">%1$s page</item>
         <item quantity="other">%1$s pages</item>
     </plurals>
-    <string name="reader_page_fraction">%1$s / %2$s</string>
     <string name="reader_time_left">%1$s left</string>
-    <string name="reader_page_slider">Page</string>
-    <string name="reader_zoom">Magnifier</string>
-    <string name="reader_rotate">Rotate page</string>
+    <string name="reader_menu">Reader menu</string>
     <string name="reader_tool_highlight">Highlight</string>
     <string name="reader_tool_note">Note</string>
     <string name="reader_tool_bookmark">Bookmark</string>

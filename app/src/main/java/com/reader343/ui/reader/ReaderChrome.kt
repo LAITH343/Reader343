@@ -1,41 +1,48 @@
 package com.reader343.ui.reader
 
 import androidx.annotation.DrawableRes
+import androidx.annotation.StringRes
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.foundation.Canvas
+import androidx.compose.animation.core.MutableTransitionState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.scaleIn
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowColumn
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.defaultMinSize
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.selection.selectableGroup
-import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Slider
+import androidx.compose.material3.PlainTooltip
 import androidx.compose.material3.Text
+import androidx.compose.material3.TooltipAnchorPosition
+import androidx.compose.material3.TooltipBox
+import androidx.compose.material3.TooltipDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
-import androidx.compose.material3.ripple
+import androidx.compose.material3.rememberTooltipState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -46,17 +53,19 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.selected
@@ -65,9 +74,15 @@ import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntRect
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Popup
+import androidx.compose.ui.window.PopupPositionProvider
+import androidx.compose.ui.window.PopupProperties
 import com.reader343.R
 import com.reader343.domain.Bookmark
 import com.reader343.domain.Chapter
@@ -84,7 +99,7 @@ import com.reader343.ui.components.SegmentedControl
 import com.reader343.ui.components.SheetHeader
 import com.reader343.ui.components.StateContent
 import com.reader343.ui.components.appClickable
-import com.reader343.ui.components.focusRing
+import com.reader343.ui.components.disabledAlpha
 import com.reader343.ui.components.formatMinutes
 import com.reader343.ui.components.formatNumber
 import com.reader343.ui.components.formatRelative
@@ -92,20 +107,18 @@ import com.reader343.ui.components.reducedMotion
 import com.reader343.ui.theme.Reader343Theme
 import com.reader343.ui.theme.appColors
 import com.reader343.ui.theme.appShapes
+import kotlin.math.roundToInt
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kotlin.math.roundToInt
 
 @Composable
 internal fun ReaderTopChrome(
     visible: Boolean,
     state: ReaderUiState.Ready,
-    hasNotes: Boolean,
-    zoomed: Boolean,
+    markup: MarkupState,
+    actions: ReaderActions,
     onBack: () -> Unit,
     onShowNotes: () -> Unit,
-    onToggleZoom: () -> Unit,
-    onToggleRotation: () -> Unit,
     modifier: Modifier = Modifier,
     readAloud: ReadAloudUi = ReadAloudUi(),
     onReadAloud: () -> Unit = {},
@@ -120,13 +133,11 @@ internal fun ReaderTopChrome(
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             ReaderTopBar(
                 state = state,
-                hasNotes = hasNotes,
-                zoomed = zoomed,
+                markup = markup,
                 readAloud = readAloud,
+                actions = actions,
                 onBack = onBack,
                 onShowNotes = onShowNotes,
-                onToggleZoom = onToggleZoom,
-                onToggleRotation = onToggleRotation,
                 onReadAloud = onReadAloud,
             )
             state.session?.let { SessionPill(session = it, modifier = Modifier.padding(top = 12.dp)) }
@@ -137,13 +148,11 @@ internal fun ReaderTopChrome(
 @Composable
 private fun ReaderTopBar(
     state: ReaderUiState.Ready,
-    hasNotes: Boolean,
-    zoomed: Boolean,
+    markup: MarkupState,
     readAloud: ReadAloudUi,
+    actions: ReaderActions,
     onBack: () -> Unit,
     onShowNotes: () -> Unit,
-    onToggleZoom: () -> Unit,
-    onToggleRotation: () -> Unit,
     onReadAloud: () -> Unit,
 ) {
     val colors = MaterialTheme.appColors
@@ -188,32 +197,184 @@ private fun ReaderTopBar(
                 overflow = TextOverflow.Ellipsis,
             )
         }
-        if (readAloud.shown) {
-            ReadAloudButton(readAloud = readAloud, onClick = onReadAloud)
-        }
-        IconBadgeButton(
-            icon = R.drawable.ic_ph_note,
-            contentDescription = stringResource(R.string.book_menu_notes),
-            onClick = onShowNotes,
-            tone = IconButtonTone.Plain,
-            badge = hasNotes,
-            badgePulse = false,
-        )
-        IconBadgeButton(
-            icon = R.drawable.ic_ph_arrow_clockwise,
-            contentDescription = stringResource(R.string.reader_rotate),
-            onClick = onToggleRotation,
-            tone = if (state.rotated) IconButtonTone.Accent else IconButtonTone.Plain,
-            modifier = Modifier.semantics { selected = state.rotated },
-        )
-        IconBadgeButton(
-            icon = R.drawable.ic_ph_magnifying_glass_plus,
-            contentDescription = stringResource(R.string.reader_zoom),
-            onClick = onToggleZoom,
-            tone = if (zoomed) IconButtonTone.Accent else IconButtonTone.Plain,
-            modifier = Modifier.semantics { selected = zoomed },
+        ReaderMenu(
+            state = state,
+            markup = markup,
+            readAloud = readAloud,
+            actions = actions,
+            onShowNotes = onShowNotes,
+            onReadAloud = onReadAloud,
         )
     }
+}
+
+@Composable
+private fun ReaderMenu(
+    state: ReaderUiState.Ready,
+    markup: MarkupState,
+    readAloud: ReadAloudUi,
+    actions: ReaderActions,
+    onShowNotes: () -> Unit,
+    onReadAloud: () -> Unit,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    val density = LocalDensity.current
+    val gap = with(density) { MenuGap.roundToPx() }
+    val direction = LocalLayoutDirection.current
+    val windowHeight = LocalWindowInfo.current.containerSize.height
+    val bottomInset = WindowInsets.safeDrawing.getBottom(density)
+    var anchorBottom by remember { mutableIntStateOf(0) }
+    val maxHeight = with(density) { (windowHeight - anchorBottom - gap - bottomInset).coerceAtLeast(0).toDp() - MenuGap }
+
+    fun setExpanded(value: Boolean) {
+        expanded = value
+        actions.onChromeHold(value)
+    }
+
+    fun select(action: () -> Unit) {
+        setExpanded(false)
+        action()
+    }
+
+    Box(modifier = Modifier.onGloballyPositioned { anchorBottom = it.boundsInWindow().bottom.roundToInt() }) {
+        IconBadgeButton(
+            icon = R.drawable.ic_ph_list,
+            contentDescription = stringResource(R.string.reader_menu),
+            onClick = { setExpanded(!expanded) },
+            tone = if (expanded) IconButtonTone.Accent else IconButtonTone.Plain,
+        )
+        if (expanded) {
+            Popup(
+                popupPositionProvider = remember(gap) { EndAlignedBelow(gap) },
+                onDismissRequest = { setExpanded(false) },
+                properties = PopupProperties(focusable = true),
+            ) {
+                val items = buildList {
+                    if (readAloud.shown) {
+                        add(
+                            MenuBubbleItem(
+                                icon = if (readAloud.playing) R.drawable.ic_ph_waveform else R.drawable.ic_ph_headphones,
+                                label = when {
+                                    !readAloud.enabled -> R.string.read_aloud_scan_notice
+                                    readAloud.playing -> R.string.read_aloud_pause
+                                    readAloud.active -> R.string.read_aloud_play
+                                    else -> R.string.read_aloud
+                                },
+                                checked = readAloud.active,
+                                enabled = readAloud.enabled,
+                                onClick = { select(onReadAloud) },
+                            ),
+                        )
+                    }
+                    add(MenuBubbleItem(R.drawable.ic_ph_note, R.string.book_menu_notes, onClick = { select(onShowNotes) }))
+                    add(
+                        MenuBubbleItem(
+                            icon = R.drawable.ic_ph_highlighter,
+                            label = R.string.reader_tool_highlight,
+                            checked = markup.highlighting,
+                            onClick = { select(actions::onToggleHighlightMode) },
+                        ),
+                    )
+                    add(MenuBubbleItem(R.drawable.ic_ph_note_pencil, R.string.reader_tool_note, onClick = { select(actions::onAddPageNote) }))
+                    add(
+                        MenuBubbleItem(
+                            icon = if (state.bookmarked) R.drawable.ic_ph_bookmark_simple_fill else R.drawable.ic_ph_bookmark_simple,
+                            label = R.string.reader_tool_bookmark,
+                            checked = state.bookmarked,
+                            onClick = { select(actions::onToggleBookmark) },
+                        ),
+                    )
+                    if (state.hasContents) {
+                        add(MenuBubbleItem(R.drawable.ic_ph_list_dashes, R.string.reader_tool_contents, onClick = { select(actions::onShowContents) }))
+                    }
+                }
+                val mirrored = if (direction == LayoutDirection.Rtl) LayoutDirection.Ltr else LayoutDirection.Rtl
+                CompositionLocalProvider(LocalLayoutDirection provides mirrored) {
+                    FlowColumn(
+                        modifier = Modifier.heightIn(max = maxHeight),
+                        verticalArrangement = Arrangement.spacedBy(BubbleSpacing),
+                        horizontalArrangement = Arrangement.spacedBy(BubbleSpacing),
+                    ) {
+                        items.forEachIndexed { index, item ->
+                            CompositionLocalProvider(LocalLayoutDirection provides direction) {
+                                MenuBubble(item = item, index = index)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+private class MenuBubbleItem(
+    @param:DrawableRes val icon: Int,
+    @param:StringRes val label: Int,
+    val checked: Boolean? = null,
+    val enabled: Boolean = true,
+    val onClick: () -> Unit,
+)
+
+private class EndAlignedBelow(private val gap: Int) : PopupPositionProvider {
+    override fun calculatePosition(
+        anchorBounds: IntRect,
+        windowSize: IntSize,
+        layoutDirection: LayoutDirection,
+        popupContentSize: IntSize,
+    ): IntOffset {
+        val x = if (layoutDirection == LayoutDirection.Rtl) anchorBounds.left else anchorBounds.right - popupContentSize.width
+        return IntOffset(x, anchorBounds.bottom + gap)
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun MenuBubble(item: MenuBubbleItem, index: Int) {
+    val colors = MaterialTheme.appColors
+    val reduced = reducedMotion()
+    val on = item.checked == true
+    val label = stringResource(item.label)
+    val appear = remember { MutableTransitionState(reduced) }.apply { targetState = true }
+    AnimatedVisibility(
+        visibleState = appear,
+        enter = fadeIn(tween(BUBBLE_IN_MS, delayMillis = index * BUBBLE_STAGGER_MS)) +
+            scaleIn(tween(BUBBLE_IN_MS, delayMillis = index * BUBBLE_STAGGER_MS), initialScale = 0.6f),
+    ) {
+        TooltipBox(
+            positionProvider = TooltipDefaults.rememberTooltipPositionProvider(TooltipAnchorPosition.Start),
+            tooltip = { PlainTooltip(containerColor = colors.surf2, contentColor = colors.ink) { Text(label) } },
+            state = rememberTooltipState(),
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(BubbleSize)
+                    .disabledAlpha(item.enabled)
+                    .bubble(on)
+                    .appClickable(shape = CircleShape, enabled = item.enabled, onClick = item.onClick)
+                    .semantics {
+                        contentDescription = label
+                        if (item.checked != null) selected = on
+                    },
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    painter = painterResource(item.icon),
+                    contentDescription = null,
+                    tint = colors.accTx,
+                    modifier = Modifier.size(20.dp),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun Modifier.bubble(on: Boolean): Modifier {
+    val colors = MaterialTheme.appColors
+    return this
+        .background(colors.surf, CircleShape)
+        .background(if (on) colors.accTint26 else colors.accTint16, CircleShape)
+        .border(1.dp, if (on) colors.accMid else colors.accLine, CircleShape)
 }
 
 @Composable
@@ -260,9 +421,7 @@ private fun SessionPill(session: SessionUi, modifier: Modifier = Modifier) {
 @Composable
 internal fun ReaderBottomChrome(
     visible: Boolean,
-    state: ReaderUiState.Ready,
     markup: MarkupState,
-    actions: ReaderActions,
     markupActions: MarkupActions,
     onAddNoteFromSelection: () -> Unit,
     modifier: Modifier = Modifier,
@@ -276,7 +435,13 @@ internal fun ReaderBottomChrome(
         enter = Motion.slideFromEdge(reduced, fromTop = false),
         exit = Motion.slideToEdge(reduced, toTop = false),
     ) {
-        Column {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .navigationBarsPadding()
+                .padding(start = 12.dp, end = 12.dp, bottom = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
             val selection = markup.selection?.takeIf { markup.loupe == null }
             AnimatedVisibility(
                 visible = selection != null,
@@ -294,245 +459,23 @@ internal fun ReaderBottomChrome(
                         },
                         onNote = onAddNoteFromSelection,
                         onDismiss = markupActions::onDismissSelection,
-                        modifier = Modifier.padding(start = 12.dp, end = 12.dp, bottom = 12.dp),
+                        modifier = Modifier.floating(MaterialTheme.appShapes.stepper),
                     )
                 }
             }
-            ReaderBottomBar(
-                state = state,
-                markup = markup,
-                actions = actions,
-                readAloud = readAloud,
-                readAloudActions = readAloudActions,
-            )
-        }
-    }
-}
-
-@Composable
-private fun ReaderBottomBar(
-    state: ReaderUiState.Ready,
-    markup: MarkupState,
-    actions: ReaderActions,
-    readAloud: ReadAloudUi,
-    readAloudActions: ReadAloudActions,
-) {
-    val colors = MaterialTheme.appColors
-    var preview by remember { mutableStateOf<Int?>(null) }
-    val shownPage = preview ?: state.currentPage
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(colors.bg.copy(alpha = BottomChromeAlpha))
-            .edgeLine(colors.line, top = true)
-            .navigationBarsPadding()
-            .padding(start = 14.dp, top = 10.dp, end = 14.dp, bottom = 14.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
-    ) {
-        if (readAloud.noText) ScanNotice()
-        if (readAloud.active) ReadAloudMiniPlayer(readAloud = readAloud, actions = readAloudActions)
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                text = stringResource(
-                    R.string.reader_page_fraction,
-                    formatNumber(shownPage + 1),
-                    formatNumber(state.pageCount),
-                ),
-                style = MaterialTheme.typography.labelMedium.copy(fontSize = 12.sp),
-                color = colors.ink2,
-                maxLines = 1,
-                modifier = Modifier.widthIn(min = PageLabelMinWidth),
-            )
-            PageSlider(
-                page = state.currentPage,
-                pageCount = state.pageCount,
-                onPreview = {
-                    preview = it
-                    actions.onChromeInteraction()
-                },
-                onSeek = actions::onSeek,
-                modifier = Modifier.weight(1f),
-            )
-            state.timeLeftMs?.let { left ->
-                Text(
-                    text = stringResource(R.string.reader_time_left, formatMinutes(left.coerceAtLeast(MIN_TIME_LEFT_MS))),
-                    style = MaterialTheme.typography.labelMedium.copy(fontSize = 12.sp),
-                    fontWeight = FontWeight.Normal,
-                    color = colors.ink3,
-                    maxLines = 1,
-                )
-            }
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            ToolTile(
-                icon = R.drawable.ic_ph_highlighter,
-                label = stringResource(R.string.reader_tool_highlight),
-                checked = markup.highlighting,
-                onClick = actions::onToggleHighlightMode,
-                modifier = Modifier.weight(1f),
-            )
-            ToolTile(
-                icon = R.drawable.ic_ph_note_pencil,
-                label = stringResource(R.string.reader_tool_note),
-                onClick = actions::onAddPageNote,
-                modifier = Modifier.weight(1f),
-            )
-            ToolTile(
-                icon = if (state.bookmarked) R.drawable.ic_ph_bookmark_simple_fill else R.drawable.ic_ph_bookmark_simple,
-                label = stringResource(R.string.reader_tool_bookmark),
-                checked = state.bookmarked,
-                onClick = actions::onToggleBookmark,
-                modifier = Modifier.weight(1f),
-            )
-            if (state.hasContents) {
-                ToolTile(
-                    icon = R.drawable.ic_ph_list_dashes,
-                    label = stringResource(R.string.reader_tool_contents),
-                    onClick = actions::onShowContents,
-                    modifier = Modifier.weight(1f),
+            if (readAloud.noText) ScanNotice(modifier = Modifier.floating(MaterialTheme.appShapes.control))
+            if (readAloud.active) {
+                ReadAloudMiniPlayer(
+                    readAloud = readAloud,
+                    actions = readAloudActions,
+                    modifier = Modifier.floating(MaterialTheme.appShapes.stepper),
                 )
             }
         }
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun PageSlider(
-    page: Int,
-    pageCount: Int,
-    onPreview: (Int?) -> Unit,
-    onSeek: (Int) -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    var dragging by remember { mutableStateOf<Float?>(null) }
-    val last = (pageCount - 1).coerceAtLeast(1)
-    val value = dragging ?: page.toFloat()
-    val label = stringResource(R.string.reader_page_slider)
-    val position = stringResource(
-        R.string.reader_page_indicator,
-        formatNumber(value.roundToInt() + 1),
-        formatNumber(pageCount),
-    )
-    Slider(
-        value = value,
-        onValueChange = {
-            dragging = it
-            onPreview(it.roundToInt())
-        },
-        onValueChangeFinished = {
-            dragging?.let { onSeek(it.roundToInt()) }
-            dragging = null
-            onPreview(null)
-        },
-        enabled = pageCount > 1,
-        valueRange = 0f..last.toFloat(),
-        steps = (pageCount - 2).coerceAtLeast(0),
-        modifier = modifier.semantics {
-            contentDescription = label
-            stateDescription = position
-        },
-        thumb = { PageThumb() },
-        track = { sliderState ->
-            val range = sliderState.valueRange.endInclusive - sliderState.valueRange.start
-            val fraction = if (range <= 0f) 0f else (sliderState.value - sliderState.valueRange.start) / range
-            PageTrack(fraction = fraction)
-        },
-    )
-}
-
-@Composable
-private fun PageThumb() {
-    val colors = MaterialTheme.appColors
-    Box(
-        modifier = Modifier
-            .size(ThumbSize + ThumbRing * 2)
-            .background(colors.accTint22, CircleShape)
-            .padding(ThumbRing)
-            .background(colors.accTx, CircleShape),
-    )
-}
-
-@Composable
-private fun PageTrack(fraction: Float) {
-    val colors = MaterialTheme.appColors
-    val rtl = LocalLayoutDirection.current == LayoutDirection.Rtl
-    Canvas(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(TrackHeight),
-    ) {
-        val radius = CornerRadius(size.height / 2f)
-        drawRoundRect(color = colors.line2, cornerRadius = radius)
-        val width = size.width * fraction.coerceIn(0f, 1f)
-        if (width > 0f) {
-            drawRoundRect(
-                color = colors.acc,
-                topLeft = Offset(if (rtl) size.width - width else 0f, 0f),
-                size = Size(width, size.height),
-                cornerRadius = radius,
-            )
-        }
-    }
-}
-
-@Composable
-private fun ToolTile(
-    @DrawableRes icon: Int,
-    label: String,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-    checked: Boolean? = null,
-) {
-    val colors = MaterialTheme.appColors
-    val shape = MaterialTheme.appShapes.control
-    val on = checked == true
-    val container = if (on) colors.accTint18 else colors.surf
-    val border = if (on) colors.accMid else colors.line
-    val content = if (on) colors.ink else colors.ink2
-    val interaction = if (checked != null) {
-        val source = remember { MutableInteractionSource() }
-        Modifier
-            .clip(shape)
-            .focusRing(source, shape)
-            .toggleable(
-                value = checked,
-                interactionSource = source,
-                indication = ripple(),
-                role = Role.Switch,
-                onValueChange = { onClick() },
-            )
-    } else {
-        Modifier.appClickable(shape = shape, onClick = onClick)
-    }
-    Column(
-        modifier = modifier
-            .defaultMinSize(minHeight = ToolTileHeight)
-            .background(container, shape)
-            .border(1.dp, border, shape)
-            .then(interaction)
-            .padding(horizontal = 4.dp, vertical = 6.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(3.dp, Alignment.CenterVertically),
-    ) {
-        Icon(
-            painter = painterResource(icon),
-            contentDescription = null,
-            tint = content,
-            modifier = Modifier.size(17.dp),
-        )
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelSmall,
-            color = content,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
-    }
-}
+private fun Modifier.floating(shape: Shape): Modifier = shadow(FloatingElevation, shape, clip = false)
 
 @Composable
 internal fun SelectionToolbar(
@@ -861,19 +804,18 @@ private fun Modifier.edgeLine(color: Color, top: Boolean): Modifier = drawBehind
 }
 
 private const val TopChromeAlpha = 0.92f
-private const val BottomChromeAlpha = 0.94f
 private const val SESSION_TICK_MS = 15_000L
-private const val MIN_TIME_LEFT_MS = 60_000L
 private const val TAB_CONTENTS = 0
 private const val TAB_BOOKMARKS = 1
 private const val LEAD_ITEMS = 2
 private const val MAX_INDENT_DEPTH = 4
 private val SessionPillHeight = 28.dp
-private val PageLabelMinWidth = 54.dp
-private val ToolTileHeight = 46.dp
-private val TrackHeight = 4.dp
-private val ThumbSize = 14.dp
-private val ThumbRing = 4.dp
+private val FloatingElevation = 8.dp
+private val BubbleSize = 48.dp
+private val MenuGap = 16.dp
+private val BubbleSpacing = 10.dp
+private const val BUBBLE_IN_MS = 180
+private const val BUBBLE_STAGGER_MS = 30
 private val SwatchTouchSize = 44.dp
 private val SwatchSize = 34.dp
 private val RowMinHeight = 48.dp

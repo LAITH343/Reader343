@@ -18,31 +18,21 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.PlainTooltip
 import androidx.compose.material3.Text
-import androidx.compose.material3.TooltipAnchorPosition
-import androidx.compose.material3.TooltipBox
-import androidx.compose.material3.TooltipDefaults
-import androidx.compose.material3.rememberTooltipState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.disabled
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
@@ -61,7 +51,6 @@ import com.reader343.domain.readAloudSpeedLabel
 import com.reader343.ui.components.BookCover
 import com.reader343.ui.components.appClickable
 import com.reader343.ui.components.currentLocale
-import com.reader343.ui.components.disabledAlpha
 import com.reader343.ui.components.formatMinutes
 import com.reader343.ui.components.formatNumber
 import com.reader343.ui.components.reducedMotion
@@ -71,7 +60,6 @@ import com.reader343.ui.readaloud.VoiceSheet
 import com.reader343.ui.theme.Reader343Theme
 import com.reader343.ui.theme.appColors
 import com.reader343.ui.theme.appShapes
-import kotlinx.coroutines.launch
 import java.util.Locale
 
 data class ReadAloudUi(
@@ -129,74 +117,6 @@ interface ReadAloudActions {
             override fun onSelectVoice(voice: TtsVoice) = Unit
             override fun onAwaitVoice() = Unit
             override fun onReadInstead() = Unit
-        }
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-internal fun ReadAloudButton(readAloud: ReadAloudUi, onClick: () -> Unit) {
-    val colors = MaterialTheme.appColors
-    val shape = MaterialTheme.appShapes.item
-    val enabled = readAloud.enabled
-    val scanNotice = stringResource(R.string.read_aloud_scan_notice)
-    val description = when {
-        !enabled -> scanNotice
-        readAloud.playing -> stringResource(R.string.read_aloud_pause)
-        readAloud.active -> stringResource(R.string.read_aloud_play)
-        else -> stringResource(R.string.read_aloud)
-    }
-    val container = when {
-        readAloud.active -> colors.accTint26
-        enabled -> colors.accTint12
-        else -> Color.Transparent
-    }
-    val border = when {
-        readAloud.active -> colors.accMid
-        enabled -> colors.accLine
-        else -> colors.line
-    }
-    val tooltipState = rememberTooltipState()
-    val scope = rememberCoroutineScope()
-    TooltipBox(
-        positionProvider = TooltipDefaults.rememberTooltipPositionProvider(TooltipAnchorPosition.Below),
-        tooltip = {
-            PlainTooltip(containerColor = colors.surf2, contentColor = colors.ink) { Text(scanNotice) }
-        },
-        state = tooltipState,
-        enableUserInput = !enabled,
-    ) {
-        Box(
-            modifier = Modifier
-                .size(ReadAloudButtonSize)
-                .disabledAlpha(enabled)
-                .background(container, shape)
-                .border(1.dp, border, shape)
-                .appClickable(
-                    shape = shape,
-                    onClick = { if (enabled) onClick() else scope.launch { tooltipState.show() } },
-                )
-                .semantics {
-                    contentDescription = description
-                    if (!enabled) disabled()
-                },
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(
-                painter = painterResource(if (readAloud.playing) R.drawable.ic_ph_waveform else R.drawable.ic_ph_headphones),
-                contentDescription = null,
-                tint = if (enabled) colors.accTx else colors.ink3,
-                modifier = Modifier.size(19.dp),
-            )
-            if (readAloud.active) {
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.BottomEnd)
-                        .padding(end = 5.dp, bottom = 5.dp)
-                        .size(ActiveDotSize)
-                        .background(colors.acc, CircleShape),
-                )
-            }
         }
     }
 }
@@ -484,8 +404,6 @@ internal fun ReadAloudVoicesSheet(
     )
 }
 
-private val ReadAloudButtonSize = 44.dp
-private val ActiveDotSize = 7.dp
 private val MinTouch = 44.dp
 private val PlayWidth = 52.dp
 private val VoiceChipMaxWidth = 108.dp
@@ -521,14 +439,6 @@ private fun ReadAloudMiniPlayerPreview() {
                 .padding(14.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                ReadAloudButton(readAloud = PreviewReadAloud.copy(status = TtsStatus.Idle), onClick = {})
-                ReadAloudButton(readAloud = PreviewReadAloud, onClick = {})
-                ReadAloudButton(
-                    readAloud = PreviewReadAloud.copy(status = TtsStatus.Idle, availability = ReadAloudAvailability.NoText),
-                    onClick = {},
-                )
-            }
             ReadAloudMiniPlayer(readAloud = PreviewReadAloud, actions = ReadAloudActions.None)
             ScanNotice()
         }
